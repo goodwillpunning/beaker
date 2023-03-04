@@ -5,9 +5,10 @@ Execute query benchmark tests against Databricks SQL warehouses and clusters.
 
 ## Getting Started
 You can create a new Benchmark test by passing in the parameters to the constructor or set the parameters later.
+
 ```python
 # First, create a new Benchmark object
-from beaker import *
+from src.beaker import *
 
 benchmark = Benchmark()
 ```
