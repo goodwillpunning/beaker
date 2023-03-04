@@ -44,7 +44,30 @@ Finally, calling the `.execute()` function runs the benchmark test.
 metrics = benchmark.execute()
 metrics.display()
 ```
+## Authentication
+`beaker` connects to the SQL warehouse or cluster using the Databricks REST API 2.0. As a result, connection information is needed.
 
+It's recommended that you do not hard-code authentication secrets. Instead consider using environment variables.
+
+Example usage:
+
+```shell
+export DATABRICKS_HOST=<workspace-hostname>.databricks.com
+export DATABRICKS_HTTP_PATH=/sql/1.0/endpoints/<warehouse-id>
+export DATABRICKS_TOKEN=dapi01234567890
+```
+
+```python
+import os
+from beaker import Benchmark
+
+hostname = os.getenv("DATABRICKS_HOST")
+http_path = os.getenv("DATABRICKS_HTTP_PATH")
+token = os.getenv("DATABRICKS_ACCESS_TOKEN")
+
+benchmark = Benchmark(hostname=hostname, http_path=http_path, token=token)
+```                
+                
 ## Setting the benchmark queries to execute
 Beaker can execute benchmark queries is several formats:
 1. Execute a single query
