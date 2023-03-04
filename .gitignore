@@ -1,1 +1,5 @@
+# PyCharm IDE
 .idea
+
+# Just Apple stuff.
+.DS_Store
