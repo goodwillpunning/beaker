@@ -8,7 +8,7 @@ You can create a new Benchmark test by passing in the parameters to the construc
 
 ```python
 # First, create a new Benchmark object
-from src.beaker import *
+from beaker import *
 
 benchmark = Benchmark()
 ```
