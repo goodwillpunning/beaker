@@ -1,26 +1,33 @@
 import time
 import re
+import requests
 from functools import reduce
 from pyspark.sql import DataFrame
 from concurrent.futures import ThreadPoolExecutor
+from beaker.sqlwarehouseutils import SQLWarehouseUtils
+from beaker.spark_fixture import get_spark_session
 
 
 class Benchmark:
     """Encapsulates a query benchmark test."""
-    def __init__(self, query=None, query_file=None, query_file_dir=None, concurrency=1, db_hostname=None, warehouse_http_path=None, token=None, catalog='hive_metastore', new_warehouse_config=None, results_cache_enabled=False):
-        self.query=query
-        self.query_file=query_file
-        self.query_file_dir=query_file_dir
-        self.concurrency=concurrency
-        self.hostname=self.setHostname(db_hostname)
-        self.http_path=warehouse_http_path
-        self.token=token
-        self.catalog=catalog
-        self.new_warehouse_config=new_warehouse_config
-        self.results_cache_enabled=results_cache_enabled
+
+    def __init__(self, query=None, query_file=None, query_file_dir=None, concurrency=1, db_hostname=None,
+                 warehouse_http_path=None, token=None, catalog='hive_metastore', new_warehouse_config=None,
+                 results_cache_enabled=False):
+        self.query = query
+        self.query_file = query_file
+        self.query_file_dir = query_file_dir
+        self.concurrency = concurrency
+        self.hostname = self.setHostname(db_hostname)
+        self.http_path = warehouse_http_path
+        self.token = token
+        self.catalog = catalog
+        self.new_warehouse_config = new_warehouse_config
+        self.results_cache_enabled = results_cache_enabled
         # Check if a new SQL warehouse needs to be created
         if new_warehouse_config is not None:
             self.setWarehouseConfig(new_warehouse_config)
+        self.spark = get_spark_session()
 
     def _get_user_id(self):
         """Helper method for filtering query history the current User's Id"""
@@ -54,16 +61,17 @@ class Benchmark:
     def setWarehouse(self, http_path):
         """Sets the SQL Warehouse http path to use for the benchmark."""
         assert self._validate_warehouse(id), "Invalid HTTP path for SQL Warehouse."
-        self.http_path=http_path
+        self.http_path = http_path
 
     def setConcurrency(self, concurrency):
         """Sets the query execution parallelism."""
-        self.concurrency=concurrency
+        self.concurrency = concurrency
 
     def setHostname(self, hostname):
         """Sets the Databricks workspace hostname."""
-        hostname_clean = hostname.strip().replace("http://", "").replace("https://", "").replace("/", "") if hostname is not None else hostname
-        self.hostname=hostname_clean
+        hostname_clean = hostname.strip().replace("http://", "").replace("https://", "")\
+            .replace("/", "") if hostname is not None else hostname
+        self.hostname = hostname_clean
 
     def setWarehouseToken(self, token):
         """Sets the API token for communicating with the SQL warehouse."""
@@ -102,9 +110,10 @@ class Benchmark:
         sql_warehouse = SQLWarehouseUtils(self.hostname, self.http_path, self.token)
         sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
-        elapsed_time = f"{end_time-start_time:0.3f}"
+        elapsed_time = f"{end_time - start_time:0.3f}"
         metrics = [(id, self.hostname, self.http_path, self.concurrency, query, elapsed_time)]
-        metrics_df = spark.createDataFrame(metrics, "id string, hostname string, warehouse string, concurrency int, query_text string, query_duration_secs string")
+        metrics_df = self.spark.createDataFrame(metrics,
+                                           "id string, hostname string, warehouse string, concurrency int, query_text string, query_duration_secs string")
         return metrics_df
 
     def _set_default_catalog(self):
@@ -141,7 +150,7 @@ class Benchmark:
 
         # Load queries from SQL file
         print(f"Loading queries from file: '{query_file}'")
-        query_file_cleaned = query_file.replace("dbfs:/", "/dbfs/") # Replace `dbfs:` paths
+        query_file_cleaned = query_file.replace("dbfs:/", "/dbfs/")  # Replace `dbfs:` paths
 
         # Parse the raw SQL, splitting lines into a query identifier (header) and query string
         with open(query_file_cleaned) as f:
@@ -165,14 +174,16 @@ class Benchmark:
             num_threads = len(queries_in_bucket)
             with ThreadPoolExecutor(max_workers=num_threads) as executor:
                 # Maps the method '_execute_single_query' with a list of queries.
-                metrics_list = list(executor.map(lambda query_with_header: self._execute_single_query(*query_with_header), query_bucket))
+                metrics_list = list(
+                    executor.map(lambda query_with_header: self._execute_single_query(*query_with_header),
+                                 query_bucket))
                 final_metrics_result = final_metrics_result + metrics_list
 
                 # Union together the metrics DFs
         if len(final_metrics_result) > 0:
             final_metrics_df = reduce(DataFrame.unionAll, final_metrics_result)
         else:
-            final_metrics_df = spark.sparkContext.emptyRDD()
+            final_metrics_df = self.spark.sparkContext.emptyRDD()
         return final_metrics_df
 
     def execute(self):
@@ -190,7 +201,8 @@ class Benchmark:
         if self.query_file_dir is not None:
             print("Loading query files from directory.")
             # TODO: Implement query directory parsing
-            #metrics_df = self._execute_queries_from_dir(self.query_file_dir)
+            # metrics_df = self._execute_queries_from_dir(self.query_file_dir)
+            metrics_df = self.spark.sparkContext.emptyRDD
         elif self.query_file is not None:
             print("Loading query file.")
             metrics_df = self._execute_queries_from_file(self.query_file)
