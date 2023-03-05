@@ -10,7 +10,7 @@ You can create a new Benchmark test by passing in the parameters to the construc
 from beaker import *
 
 # First, create a new Benchmark object, specifying connection parameters
-benchmark = Benchmark(query=query, hostname=hostname, http_path=http_path, token=pat, catalog="hive_metastore")
+benchmark = Benchmark(query=query, hostname=hostname, http_path=http_path, token=pat)
 ```
 
 The Benchmark class can also use a builder pattern to specify the connection parameters.
