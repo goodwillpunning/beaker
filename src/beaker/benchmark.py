@@ -72,7 +72,7 @@ class Benchmark:
 
     def setHostname(self, hostname):
         """Sets the Databricks workspace hostname."""
-        hostname_clean = hostname.strip().replace("http://", "").replace("https://", "")\
+        hostname_clean = hostname.strip().replace("http://", "").replace("https://", "") \
             .replace("/", "") if hostname is not None else hostname
         self.hostname = hostname_clean
 
@@ -110,25 +110,17 @@ class Benchmark:
         query = query.strip()
         logging.info(query)
         start_time = time.perf_counter()
-        sql_warehouse = SQLWarehouseUtils(self.hostname, self.http_path, self.token)
+        sql_warehouse = SQLWarehouseUtils(self.hostname, self.http_path, self.token, self.results_cache_enabled)
         sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
         metrics = [(id, self.hostname, self.http_path, self.concurrency, query, elapsed_time)]
         metrics_df = self.spark.createDataFrame(metrics,
-                                           "id string, hostname string, warehouse string, concurrency int, query_text string, query_duration_secs string")
+                                                "id string, hostname string, warehouse string, concurrency int, query_text string, query_duration_secs string")
         return metrics_df
 
     def _set_default_catalog(self):
         query = f"USE CATALOG {self.catalog}"
-        self._execute_single_query(query)
-
-    def _set_results_caching(self):
-        """Enables/disables results caching."""
-        if not self.results_cache_enabled:
-            query = "SET use_cached_result=false"
-        else:
-            query = "SET use_cached_result=true"
         self._execute_single_query(query)
 
     def _parse_queries(self, raw_queries):
@@ -194,9 +186,6 @@ class Benchmark:
         logging.info("Executing benchmark test.")
         # Set which Catalog to use
         self._set_default_catalog()
-        # Enable/disable results caching on the SQL warehouse
-        # https://docs.databricks.com/sql/admin/query-caching.html
-        self._set_results_caching()
         # Query format precedence:
         # 1. Query File Dir
         # 2. Query File
