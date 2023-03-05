@@ -7,14 +7,15 @@ Execute query benchmark tests against Databricks SQL warehouses and clusters.
 You can create a new Benchmark test by passing in the parameters to the constructor or set the parameters later.
 
 ```python
-# First, create a new Benchmark object
 from beaker import *
 
-benchmark = Benchmark()
+# First, create a new Benchmark object, specifying connection parameters
+benchmark = Benchmark(query=query, hostname=hostname, http_path=http_path, token=pat, catalog="hive_metastore")
 ```
 
-The Benchmark class uses a builder pattern to specify the test parameters.
+The Benchmark class can also use a builder pattern to specify the connection parameters.
 ```python
+benchmark = Benchmark()
 benchmark.setHostname(hostname=hostname)
 # HTTP path to an existing warehouse/cluster
 benchmark.setWarehouse(http_path=http_path)
@@ -53,7 +54,7 @@ Example usage:
 
 ```shell
 export DATABRICKS_HOST=<workspace-hostname>.databricks.com
-export DATABRICKS_HTTP_PATH=/sql/1.0/endpoints/<warehouse-id>
+export DATABRICKS_HTTP_PATH=/sql/1.0/warehouses/<warehouse-id>
 export DATABRICKS_TOKEN=dapi01234567890
 ```
 
