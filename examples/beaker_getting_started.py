@@ -22,12 +22,13 @@ import os
 
 # Note: Don't hard-code authentication secrets.
 # Instead, consider using environment variables.
-host = os.getenv("DATABRICKS_HOST)
-http_path = os.getenv("DATABRICKS_HTTP_PATH)
-access_token = os.getenv("DATABRICKS_ACCESS_TOKEN)
+hostname = os.getenv("DATABRICKS_HOST")
+http_path = os.getenv("DATABRICKS_HTTP_PATH")
+access_token = os.getenv("DATABRICKS_ACCESS_TOKEN")
 
 # Define connection parameters
 # Use the builder pattern to add parameters for connecting to the warehouse
+benchmark.setName(name="simple_test")
 benchmark.setHostname(hostname=hostname)
 benchmark.setWarehouse(http_path=http_path)
 benchmark.setConcurrency(concurrency=1)
@@ -52,6 +53,11 @@ benchmark.setCatalog(catalog="hive_metastore")
 # Run the benchmark!
 metrics = benchmark.execute()
 metrics.display()
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT * FROM simple_test_vw
 
 # COMMAND ----------
 
@@ -87,4 +93,48 @@ metrics.display()
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Execute Multiple Queries Concurrently
+# MAGIC `Beaker` was created with concurrency in mind. For example, it's useful for answering questions like, "How will a SQL warehouse perform under peak, interactive usage?". 
+# MAGIC 
+# MAGIC You can test concurrent query execution by listing the benchmark queries in a **file**.
+# MAGIC 
+# MAGIC The query file format should follow the format:
+# MAGIC 
+# MAGIC ```
+# MAGIC -- a unique query identifier (header) followed by a newline
+# MAGIC Q1
+# MAGIC 
+# MAGIC -- the query body followed by a new line
+# MAGIC SELECT * FROM us_population_2016 WHERE state in ('DE', 'MD', 'VA');
+# MAGIC ```
 
+# COMMAND ----------
+
+# First, create a query file using the format above
+dbutils.fs.put("/tmp/my_query_file.sql", """
+Q1
+
+SELECT count(*)
+  FROM delta.`/databricks-datasets/nyctaxi/tables/nyctaxi_yellow`
+ WHERE passenger_count = 1
+ 
+Q2
+
+SELECT count(*)
+  FROM delta.`/databricks-datasets/nyctaxi/tables/nyctaxi_yellow`
+ WHERE passenger_count > 2
+""")
+
+# COMMAND ----------
+
+benchmark = Benchmark()
+benchmark.setName(name="concurrency_test")
+benchmark.setHostname(hostname=hostname)
+benchmark.setWarehouse(http_path=http_path)
+benchmark.setWarehouseToken(token=pat)
+
+# Next, define the query file path and the parallelism
+benchmark.setConcurrency(concurrency=2)  # execute both queries in parallel
+benchmark.setQueryFile(query_file="/tmp/my_query_file.sql")
+benchmark.setCatalog(catalog="hive_metastore")
