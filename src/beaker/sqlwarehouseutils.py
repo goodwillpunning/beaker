@@ -1,6 +1,6 @@
-from databricks import sql
 import requests
 
+from databricks import sql
 
 class SQLWarehouseUtils:
 
@@ -55,14 +55,17 @@ class SQLWarehouseUtils:
 
     def launch_warehouse(self, config):
         """Creates a new SQL warehouse based upon a config."""
-        assert self.access_token is not None, "An API token is needed to launch a compute instance. Use `.setToken(token)` to add an API token."
-        assert self.hostname is not None, "A Databricks hostname is needed to launch a compute instance. Use `.setHostname(hostname)` to add a Databricks hostname."
+        assert self.access_token is not None, "An API token is needed to launch a compute instance. " \
+                                              "Use `.setToken(token)` to add an API token."
+        assert self.hostname is not None, "A Databricks hostname is needed to launch a compute instance. " \
+                                          "Use `.setHostname(hostname)` to add a Databricks hostname."
         # Determine the type of compute to lauch: warehouse or cluster
         if 'type' not in config:
             type = 'warehouse' # default to a SQL warehouse
         else:
             type = config['type'].strip().lower()
-            assert type == "warehouse" or type == "cluster", "Invalid compute 'type' provided. Allowed types include: ['warehouse', 'cluster']."
+            assert type == "warehouse" or type == "cluster", "Invalid compute 'type' provided. " \
+                                                             "Allowed types include: ['warehouse', 'cluster']."
 
         # Determine the Spark runtime to install
         latest_runtimes = self._get_spark_runtimes()
@@ -72,18 +75,20 @@ class SQLWarehouseUtils:
             spark_version = self._LATEST_RUNTIME # default to the latest runtime
         else:
             spark_version = config['runtime'].strip().lower()
-            assert spark_version in latest_runtimes, f"Invalid Spark 'runtime'. Valid runtimes include: {latest_runtimes}"
+            assert spark_version in latest_runtimes, f"Invalid Spark 'runtime'. " \
+                                                     f"Valid runtimes include: {latest_runtimes}"
 
         # Determine the size of the compute
         if 'size' not in config:
             size = 'Small'
         else:
             size = config['size'].strip()
-            assert size in self._CLUSTER_SIZES, f"Invalid cluster 'size'. Valid cluster 'sizes' include: {self._CLUSTER_SIZES}"
+            assert size in self._CLUSTER_SIZES, f"Invalid cluster 'size'. " \
+                                                f"Valid cluster 'sizes' include: {self._CLUSTER_SIZES}"
 
         # Determine if Photon should be enabled or not
         if 'enable_photon' not in config:
-            enable_photon = 'true' # default
+            enable_photon = 'true'  # default
         else:
             enable_photon = str(config['enable_photon']).lower()
 

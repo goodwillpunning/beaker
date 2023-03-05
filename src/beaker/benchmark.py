@@ -1,9 +1,12 @@
 import time
 import re
 import requests
+import logging
+from concurrent.futures import ThreadPoolExecutor
+
 from functools import reduce
 from pyspark.sql import DataFrame
-from concurrent.futures import ThreadPoolExecutor
+
 from beaker.sqlwarehouseutils import SQLWarehouseUtils
 from beaker.spark_fixture import get_spark_session
 
@@ -53,9 +56,9 @@ class Benchmark:
     def setWarehouseConfig(self, config):
         """Launches a new cluster/warehouse from a JSON config."""
         self.new_warehouse_config = config
-        print(f"Creating new warehouse with config: {config}")
+        logging.info(f"Creating new warehouse with config: {config}")
         warehouse_id = self._launch_new_warehouse()
-        print(f"The warehouse Id is: {warehouse_id}")
+        logging.info(f"The warehouse Id is: {warehouse_id}")
         self.http_path = f"/sql/1.0/warehouses/{warehouse_id}"
 
     def setWarehouse(self, http_path):
@@ -105,7 +108,7 @@ class Benchmark:
 
     def _execute_single_query(self, query, id=None):
         query = query.strip()
-        print(query)
+        logging.info(query)
         start_time = time.perf_counter()
         sql_warehouse = SQLWarehouseUtils(self.hostname, self.http_path, self.token)
         sql_warehouse.execute_query(query)
@@ -149,7 +152,7 @@ class Benchmark:
         queries = []
 
         # Load queries from SQL file
-        print(f"Loading queries from file: '{query_file}'")
+        logging.info(f"Loading queries from file: '{query_file}'")
         query_file_cleaned = query_file.replace("dbfs:/", "/dbfs/")  # Replace `dbfs:` paths
 
         # Parse the raw SQL, splitting lines into a query identifier (header) and query string
@@ -161,14 +164,14 @@ class Benchmark:
 
         # Split the list of queries into buckets determined by specified concurrency
         bucketed_queries_list = list(self._get_concurrent_queries(headers, queries, self.concurrency))
-        print(f"There are {len(queries)} total queries.")
-        print(f"The concurrency is {self.concurrency}")
-        print(f"There are {len(bucketed_queries_list)} buckets of queries")
+        logging.info(f"There are {len(queries)} total queries.")
+        logging.info(f"The concurrency is {self.concurrency}")
+        logging.info(f"There are {len(bucketed_queries_list)} buckets of queries")
 
         # Take each bucket of queries and execute concurrently
         final_metrics_result = []
         for query_bucket in bucketed_queries_list:
-            print(f'Executing {len(query_bucket)} queries concurrently.')
+            logging.info(f'Executing {len(query_bucket)} queries concurrently.')
             # Multi-thread query execution
             queries_in_bucket = [query_with_header for query_with_header in query_bucket]
             num_threads = len(queries_in_bucket)
@@ -188,7 +191,7 @@ class Benchmark:
 
     def execute(self):
         """Executes the benchmark test."""
-        print("Executing benchmark test.")
+        logging.info("Executing benchmark test.")
         # Set which Catalog to use
         self._set_default_catalog()
         # Enable/disable results caching on the SQL warehouse
@@ -199,15 +202,15 @@ class Benchmark:
         # 2. Query File
         # 3. Single Query
         if self.query_file_dir is not None:
-            print("Loading query files from directory.")
+            logging.info("Loading query files from directory.")
             # TODO: Implement query directory parsing
             # metrics_df = self._execute_queries_from_dir(self.query_file_dir)
             metrics_df = self.spark.sparkContext.emptyRDD
         elif self.query_file is not None:
-            print("Loading query file.")
+            logging.info("Loading query file.")
             metrics_df = self._execute_queries_from_file(self.query_file)
         elif self.query is not None:
-            print("Executing single query.")
+            logging.info("Executing single query.")
             metrics_df = self._execute_single_query(self.query)
         else:
             raise ValueError("No query specified.")
@@ -215,11 +218,12 @@ class Benchmark:
 
     def preWarmTables(self, tables):
         """Delta caches the table before running a benchmark test."""
-        assert self.http_path is not None, "No running warehouse. You can launch a new ware house by calling `.setWarehouseConfig()`."
+        assert self.http_path is not None, "No running warehouse. " \
+                                           "You can launch a new ware house by calling `.setWarehouseConfig()`."
         assert self.catalog is not None, "No catalog provided. You can add a catalog by calling `.setCatalog()`."
         self._execute_single_query(f"USE CATALOG {self.catalog}")
         for table in tables:
-            print(f"Pre-warming table: {table}")
+            logging.info(f"Pre-warming table: {table}")
             query = f"SELECT * FROM {table}"
             self._execute_single_query(query)
 
