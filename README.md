@@ -83,6 +83,11 @@ However, if multiple query formats are provided, the following query format prec
 2. **Query File** - if no query directory is provided, but a query file is, then Beaker will parse the query file
 3. **Single Query** - if no query directory or query file is provided, then Beaker will execute a single query
 
+## Execute Multiple Queries Concurrently
+`Beaker` was created with concurrency in mind. For example, it's useful for answering questions like, "How will a SQL warehouse perform under peak, interactive usage?".
+
+You can test concurrent query execution by listing the benchmark queries in a **file**.
+
 ### Query file format
 The query file must contain queries that are separated using the following format:
 
