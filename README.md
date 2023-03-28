@@ -3,11 +3,25 @@ Execute query benchmark tests against Databricks SQL warehouses and clusters.
 
 <img src="./assets/images/beaker.png" width="200">
 
+## Examples
+
+There are three examples:
+
+#### examples/beaker_standalone.py
+Standalone. Run as `> python examples/beaker_standalone.py`.
+
+#### examples/getting_started.ipynb
+Run in any jupyter notebook environment.
+
+#### examples/beaker_getting_started.py
+Databricks notebook source.
+
+
 ## Getting Started
 You can create a new Benchmark test by passing in the parameters to the constructor or set the parameters later.
 
 ```python
-from beaker import *
+from beaker.benchmark import *
 
 # First, create a new Benchmark object, specifying connection parameters
 benchmark = Benchmark(query=query, hostname=hostname, http_path=http_path, token=pat)
@@ -43,8 +57,28 @@ Finally, calling the `.execute()` function runs the benchmark test.
 ```python
 # Run the benchmark!
 metrics = benchmark.execute()
-metrics.display()
+print(metrics)
 ```
+
+`metrics` is a list of dict. Each dict is the result of a single query execution.
+
+If you want to examine the results as a spark DataFrame and your environment has the capability of creating a spark session, you can use spark_fixture.
+
+```
+import spark_fixture
+
+df = spark_fixture.metrics_to_df_view(metrics, view_name='beaker_benchmark_test')
+df.display()
+```
+
+The above will also create a view with the name `beaker_benchmark_test` so you can use SQL to analyze the results.
+
+```
+%sql
+select * from beaker_benchmark_tests;
+```
+
+
 ## Authentication
 `beaker` connects to the SQL warehouse or cluster using the Databricks REST API 2.0. As a result, connection information is needed.
 
@@ -70,7 +104,7 @@ benchmark = Benchmark(hostname=hostname, http_path=http_path, token=token)
 ```                
                 
 ## Setting the benchmark queries to execute
-Beaker can execute benchmark queries is several formats:
+Beaker can be given queries to execute in several ways:
 1. Execute a single query
 ```benchmark.setQuery(query=query)```
 2. Execute several queries from a file
@@ -78,9 +112,9 @@ Beaker can execute benchmark queries is several formats:
 3. Execute several query files given a local directory
 ```benchmark.setQueryFileDir(query_file_dir=query_file_dir)```
 
-However, if multiple query formats are provided, the following query format precedence will be followed:
+However, if multiple of the above are provided, the following query format precedence will be followed:
 1. **Query File Dir** - if a local directory is provided then Beaker will parse all query files under the directory
-2. **Query File** - if no query directory is provided, but a query file is, then Beaker will parse the query file
+2. **Query File** - if no query directory is provided, but a query file is, then Beaker will parse the query file. See below for two different formats for a single file.
 3. **Single Query** - if no query directory or query file is provided, then Beaker will execute a single query
 
 ## Execute Multiple Queries Concurrently
@@ -88,7 +122,9 @@ However, if multiple query formats are provided, the following query format prec
 
 You can test concurrent query execution by listing the benchmark queries in a **file**.
 
-### Query file format
+Two query formats are supported.
+
+#### Query file format: original
 The query file must contain queries that are separated using the following format:
 
 ```sql
@@ -100,11 +136,20 @@ SELECT * FROM us_population_2016 WHERE state in ('DE', 'MD', 'VA');
 
 ```
 
-## Viewing the metrics report
-Once all benchmark queries have been executed, Beaker will consolidate metrics of each query execution into a single Spark DataFrame.
-A temporary view is also created, to make querying the output and building local visualizations easier. 
+#### Query file format: semicolon-delimited
+The query file must contain queries that are separated by a semicolon:
 
-The name of the view has the following format: `{name_of_benchmark}_vw`
+```sql
+-- some comment
+select * from foo;
+
+-- more comments
+SELECT * FROM us_population_2016 WHERE state in ('DE', 'MD', 'VA');
+```
+
+## Viewing the metrics report
+The metrics report is best viewed as a single dataframe (using ```spark_fixture.metrics_to_df_view``` as shown above).
+A temporary view is also created, to make querying the output and building local visualizations easier. 
 
 <img src="./assets/images/metrics_visualization.png" />
 
