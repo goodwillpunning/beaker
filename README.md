@@ -45,6 +45,26 @@ Finally, calling the `.execute()` function runs the benchmark test.
 metrics = benchmark.execute()
 metrics.display()
 ```
+
+`metrics` is a list of dict. Each dict is the result of a single query execution.
+
+If you want to examine the results as a spark DataFrame and your environment has the capability of creating a spark session, you can use spark_fixture.
+
+```
+import spark_fixture
+
+df = spark_fixture.metrics_to_df_view(metrics, view_name='beaker_benchmark_test')
+df.display()
+```
+
+The above will also create a view with the name `beaker_benchmark_test` so you can use SQL to analyze the results.
+
+```
+%sql
+select * from beaker_benchmark_tests;
+```
+
+
 ## Authentication
 `beaker` connects to the SQL warehouse or cluster using the Databricks REST API 2.0. As a result, connection information is needed.
 

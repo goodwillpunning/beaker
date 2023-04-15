@@ -22,6 +22,7 @@ def get_spark_session():
 
 def metrics_to_df_view(metrics, view_name):
     '''Convert a list of dicts to a results dataframe.
+    Create a view and return the dataframe.
     '''
     spark = get_spark_session()
     df = spark.createDataFrame(metrics)

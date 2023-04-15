@@ -14,12 +14,15 @@ from beaker.sqlwarehouseutils import SQLWarehouseUtils
 
 class Benchmark:
     """Encapsulates a query benchmark test."""
-
+    QUERY_FILE_FORMAT_ORIGINAL = "original"
+    QUERY_FILE_FORMAT_SEMICOLON_DELIM = "semicolon-delimited"
+    
     def __init__(self, name="Beaker Benchmark Test", query=None, query_file=None, query_file_dir=None, concurrency=1, db_hostname=None,
                  warehouse_http_path=None, token=None, catalog='hive_metastore',
                  schema='default',
                  new_warehouse_config=None,
-                 results_cache_enabled=False):
+                 results_cache_enabled=False,
+                 query_file_format=QUERY_FILE_FORMAT_ORIGINAL):
         self.name = self._clean_name(name)
         self.query = query
         self.query_file = query_file
@@ -36,6 +39,7 @@ class Benchmark:
         # Check if a new SQL warehouse needs to be created
         if new_warehouse_config is not None:
             self.setWarehouseConfig(new_warehouse_config)
+        self.query_file_format = query_file_format
         #self.spark = get_spark_session()
 
     def _get_user_id(self):
@@ -105,13 +109,8 @@ class Benchmark:
         """Sets a single query to execute."""
         self.query = query
 
-    def _validateQueryFile(self, query_file):
-        """Validates the query file."""
-        return True
-
     def setQueryFile(self, query_file):
         """Sets the query file to use."""
-        assert self._validateQueryFile(query_file), "Invalid query file."
         self.query_file = query_file
 
     def _validateQueryFileDir(self, query_file_dir):
@@ -153,23 +152,66 @@ class Benchmark:
         queries = split_clean[1::2]
         return headers, queries
 
-    def _get_concurrent_queries(self, headers_list, queries_list, max_concurrency):
-        """Slices headers and queries into equal bins"""
-        for i in range(0, len(queries_list), max_concurrency):
-            headers = headers_list[i:(i + max_concurrency)]
-            queries = queries_list[i:(i + max_concurrency)]
-            yield list(zip(queries, headers))
+    def _get_queries_from_file_format_orig(self, f):
+        with open(f, 'r') as of:
+            raw_queries = of.read()
+            file_headers, file_queries = self._parse_queries(raw_queries)
+        queries = [e for e in zip(file_queries, file_headers)]
+        return queries
 
-    def _get_queries_from_dir(self, queries_dir):
+    def _get_queries_from_file_format_semi(self, f, filter_comment_lines=False):
+        fc = None
+        queries = []
+        with open(f, 'r') as of:
+            fc = of.read()
+        for idx, q in enumerate(fc.split(';')):
+            q = q.strip()
+            if not q: continue
+            rq = []
+            for l in q.split('\n'):
+                if not l.strip():
+                    continue
+                if filter_comment_lines and l.startswith('--'):
+                    print(f'filtering {l}')
+                    continue
+                rq.append(l)
+            if rq:
+                queries.append(('\n'.join(rq), f'query{idx}',))
+        return queries
+
+    def _get_queries_from_file(self, query_file):
+        if self.query_file_format == self.QUERY_FILE_FORMAT_SEMICOLON_DELIM:
+            return self._get_queries_from_file_format_semi(query_file)
+        elif self.query_file_format == self.QUERY_FILE_FORMAT_ORIGINAL:
+            return self._get_queries_from_file_format_orig(query_file)
+        else:
+            raise Exception('unknown file format')
+
+    def _execute_queries_from_file(self, query_file):
+        queries = self._get_queries_from_file(query_file)
+        metrics = self._execute_queries(queries, self.concurrency)
+        return metrics
+
+
+    def _get_query_filenames_from_dir(self, queries_dir):
         return [os.path.join(queries_dir, f) for f in os.listdir(queries_dir)]
 
-    def _execute_queries_from_dir(self, query_dir):
-        query_files = self._get_queries_from_dir(query_dir)
+    def _get_queries_from_dir(self, query_dir):
+        query_files = self._get_query_filenames_from_dir(query_dir)
         queries = []
         for qf in query_files:
-            queries.append((open(qf).read(), qf.split('/')[-1], ))
+            queries.append((open(qf).read(), qf.split('/')[-1]))
+        return queries
+
+    def _execute_queries_from_dir(self, query_dir):
+        queries = self._get_queries_from_dir(query_dir)
         metrics =  self._execute_queries(queries, self.concurrency)
         return metrics
+
+    def _execute_queries_from_query(self, query):
+        metrics = self._execute_queries([(query, 'query')], 1)
+        return metrics
+
 
     def _execute_queries(self, queries, num_threads):
         metrics_list = None
@@ -181,78 +223,24 @@ class Benchmark:
         #return final_metrics_df
         return metrics_list
 
-    def _execute_queries_from_file(self, query_file):
-        """Parses a file containing a list of queries to execute on a SQL warehouse."""
-        # Keep a list of unique query Ids/headers and query strings
-        headers = []
-        queries = []
-
-        # Load queries from SQL file
-        logging.info(f"Loading queries from file: '{query_file}'")
-        query_file_cleaned = query_file.replace("dbfs:/", "/dbfs/")  # Replace `dbfs:` paths
-
-        # Parse the raw SQL, splitting lines into a query identifier (header) and query string
-        with open(query_file_cleaned) as f:
-            raw_queries = f.read()
-            file_headers, file_queries = self._parse_queries(raw_queries)
-            headers = headers + file_headers
-            queries = queries + file_queries
-
-        # Split the list of queries into buckets determined by specified concurrency
-        bucketed_queries_list = list(self._get_concurrent_queries(headers, queries, self.concurrency))
-        logging.info(f"There are {len(queries)} total queries.")
-        logging.info(f"The concurrency is {self.concurrency}")
-        logging.info(f"There are {len(bucketed_queries_list)} buckets of queries")
-
-        # Take each bucket of queries and execute concurrently
-        final_metrics_result = []
-        for query_bucket in bucketed_queries_list:
-            logging.info(f'Executing {len(query_bucket)} queries concurrently.')
-            # Multi-thread query execution
-            queries_in_bucket = [query_with_header for query_with_header in query_bucket]
-            num_threads = len(queries_in_bucket)
-            with ThreadPoolExecutor(max_workers=num_threads) as executor:
-                # Maps the method '_execute_single_query' with a list of queries.
-                metrics_list = list(
-                    executor.map(lambda query_with_header: self._execute_single_query(*query_with_header),
-                                 query_bucket))
-                final_metrics_result = final_metrics_result + metrics_list
-
-                # Union together the metrics DFs
-        return final_metrics_result
-        #if len(final_metrics_result) > 0:
-        #    final_metrics_df = reduce(DataFrame.unionAll, final_metrics_result)
-        #else:
-        #    final_metrics_df = self.spark.sparkContext.emptyRDD()
-        #return final_metrics_df
 
     def execute(self):
         """Executes the benchmark test."""
         logging.info("Executing benchmark test.")
         # Set which Catalog to use
         self._set_default_catalog()
-        # Query format precedence:
-        # 1. Query File Dir
-        # 2. Query File
-        # 3. Single Query
+        metrics = None
         if self.query_file_dir is not None:
             logging.info("Loading query files from directory.")
-            # TODO: Implement query directory parsing
             metrics = self._execute_queries_from_dir(self.query_file_dir)
-            #metrics_df = self.spark.sparkContext.emptyRDD
         elif self.query_file is not None:
             logging.info("Loading query file.")
             metrics = self._execute_queries_from_file(self.query_file)
         elif self.query is not None:
             logging.info("Executing single query.")
-            metrics = self._execute_single_query(self.query)
+            metrics = self._execute_queries_from_query(self.query)
         else:
             raise ValueError("No query specified.")
-        #metrics_vw = f"{self.name}_vw"
-        #metrics_df.createOrReplaceTempView(metrics_vw)
-        #logging.info(f"View `{metrics_vw}` has been created with benchmark results.")
-        #print(f"Note: You can query the results of this benchmark test by querying the temporary view `{self.name}_vw`")
-        #return metrics_df
         return metrics
 
     def preWarmTables(self, tables):
