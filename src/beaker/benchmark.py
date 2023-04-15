@@ -91,7 +91,7 @@ class Benchmark:
             .replace("/", "") if hostname is not None else hostname
         self.hostname = hostname_clean
         logging.warn(f'self.hostname = {self.hostname}')
-        print(f'self.hostname = {self.hostname}')
+        #print(f'self.hostname = {self.hostname}')
 
     def setWarehouseToken(self, token):
         """Sets the API token for communicating with the SQL warehouse."""
@@ -133,7 +133,10 @@ class Benchmark:
         sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
-        metrics = [(id, self.hostname, self.http_path, self.concurrency, query, elapsed_time)]
+        #metrics = (id, self.hostname, self.http_path, self.concurrency, query, elapsed_time)
+        metrics = {'id':id, 'hostname':self.hostname, 'http_path':self.http_path,
+                   'concurrency':self.concurrency, 'query':query,
+                   'elapsed_time':elapsed_time}
         #metrics_df = self.spark.createDataFrame(metrics,
         #                                        "id string, hostname string, warehouse string, concurrency int, query_text string, query_duration_secs string")
         #return metrics_df

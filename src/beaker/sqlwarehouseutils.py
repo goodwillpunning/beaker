@@ -8,8 +8,8 @@ class SQLWarehouseUtils:
     _CLUSTER_SIZES = ["2X-Small", "X-Small", "Small", "Medium", "Large", "X-Large", "2X-Large", "3X-Large", "4X-Large"]
 
     def __init__(self, hostname=None, warehouse_http_path=None, token=None, schema='default', enable_results_caching=False):
-        print("SQLWarehouseUtils.__init__(%s)", (locals(),))
-        print(f"setting hostname = {hostname}")
+        #print("SQLWarehouseUtils.__init__(%s)", (locals(),))
+        #print(f"setting hostname = {hostname}")
         self.hostname=hostname
         self.http_path=warehouse_http_path
         self.access_token=token
