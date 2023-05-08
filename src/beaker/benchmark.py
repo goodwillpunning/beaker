@@ -94,7 +94,7 @@ class Benchmark:
         hostname_clean = hostname.strip().replace("http://", "").replace("https://", "") \
             .replace("/", "") if hostname is not None else hostname
         self.hostname = hostname_clean
-        logging.warn(f'self.hostname = {self.hostname}')
+        logging.info(f'self.hostname = {self.hostname}')
         #print(f'self.hostname = {self.hostname}')
 
     def setWarehouseToken(self, token):
