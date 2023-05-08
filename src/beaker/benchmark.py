@@ -105,6 +105,10 @@ class Benchmark:
         """Set the target Catalog to execute queries."""
         self.catalog = catalog
 
+    def setSchema(self, schema):
+        """Set the target schema to execute queries."""
+        self.schema = schema
+
     def setQuery(self, query):
         """Sets a single query to execute."""
         self.query = query
@@ -142,8 +146,14 @@ class Benchmark:
         return metrics
 
     def _set_default_catalog(self):
-        query = f"USE CATALOG {self.catalog}"
-        self._execute_single_query(query)
+        if self.catalog:
+            query = f"USE CATALOG {self.catalog}"
+            self._execute_single_query(query)
+
+    def _set_default_schema(self):
+        if self.schema:
+            query = f"USE SCHEMA {self.schema}"
+            self._execute_single_query(query)
 
     def _parse_queries(self, raw_queries):
         split_raw = re.split(r"(Q\d+\n+)", raw_queries)[1:]
@@ -229,6 +239,7 @@ class Benchmark:
         logging.info("Executing benchmark test.")
         # Set which Catalog to use
         self._set_default_catalog()
+        self._set_default_schema()
         metrics = None
         if self.query_file_dir is not None:
             logging.info("Loading query files from directory.")
