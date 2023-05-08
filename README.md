@@ -3,6 +3,20 @@ Execute query benchmark tests against Databricks SQL warehouses and clusters.
 
 <img src="./assets/images/beaker.png" width="200">
 
+## Examples
+
+There are three examples:
+
+#### examples/beaker_standalone.py
+Standalone. Run as `> python examples/beaker_standalone.py`.
+
+#### examples/getting_started.ipynb
+Run in any jupyter notebook environment.
+
+#### examples/beaker_getting_started.py
+Databricks notebook source.
+
+
 ## Getting Started
 You can create a new Benchmark test by passing in the parameters to the constructor or set the parameters later.
 
@@ -90,7 +104,7 @@ benchmark = Benchmark(hostname=hostname, http_path=http_path, token=token)
 ```                
                 
 ## Setting the benchmark queries to execute
-Beaker can execute benchmark queries is several formats:
+Beaker can be given queries to execute in several ways:
 1. Execute a single query
 ```benchmark.setQuery(query=query)```
 2. Execute several queries from a file
@@ -98,9 +112,9 @@ Beaker can execute benchmark queries is several formats:
 3. Execute several query files given a local directory
 ```benchmark.setQueryFileDir(query_file_dir=query_file_dir)```
 
-However, if multiple query formats are provided, the following query format precedence will be followed:
+However, if multiple of the above are provided, the following query format precedence will be followed:
 1. **Query File Dir** - if a local directory is provided then Beaker will parse all query files under the directory
-2. **Query File** - if no query directory is provided, but a query file is, then Beaker will parse the query file
+2. **Query File** - if no query directory is provided, but a query file is, then Beaker will parse the query file. See below for two different formats for a single file.
 3. **Single Query** - if no query directory or query file is provided, then Beaker will execute a single query
 
 ## Execute Multiple Queries Concurrently
@@ -110,7 +124,7 @@ You can test concurrent query execution by listing the benchmark queries in a **
 
 Two query formats are supported.
 
-### Query file format: original
+#### Query file format: original
 The query file must contain queries that are separated using the following format:
 
 ```sql
@@ -122,7 +136,7 @@ SELECT * FROM us_population_2016 WHERE state in ('DE', 'MD', 'VA');
 
 ```
 
-### Query file format: semicolon-delimited
+#### Query file format: semicolon-delimited
 The query file must contain queries that are separated by a semicolon:
 
 ```sql
