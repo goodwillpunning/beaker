@@ -1,4 +1,6 @@
 import requests
+import logging
+import datetime
 
 from databricks import sql
 
@@ -117,7 +119,7 @@ class SQLWarehouseUtils:
                 "Authorization": f"Bearer {self.access_token}"
             },
             json={
-                "name": "🧪 Beaker Benchmark Testing Warehouse",
+                "name": f"🧪 Beaker Benchmark Testing Warehouse {datetime.datetime.now()}",  # Can't start 2 warehouses with the same name
                 "cluster_size": size,
                 "min_num_clusters": min_num_clusters,
                 "max_num_clusters": max_num_clusters,
@@ -135,5 +137,8 @@ class SQLWarehouseUtils:
                 }
             }
         )
-        warehouse_id = response.json()['id']
+        #logging.info(f"create cluster response: {response.json()}")
+        warehouse_id = response.json().get('id')
+        if not warehouse_id:
+            raise Exception(f"did not get back warehouse_id ({response.json()})")
         return warehouse_id
