@@ -7,7 +7,7 @@ Execute query benchmark tests against Databricks SQL warehouses and clusters.
 You can create a new Benchmark test by passing in the parameters to the constructor or set the parameters later.
 
 ```python
-from beaker import *
+from beaker.benchmark import *
 
 # First, create a new Benchmark object, specifying connection parameters
 benchmark = Benchmark(query=query, hostname=hostname, http_path=http_path, token=pat)
@@ -43,7 +43,7 @@ Finally, calling the `.execute()` function runs the benchmark test.
 ```python
 # Run the benchmark!
 metrics = benchmark.execute()
-metrics.display()
+print(metrics)
 ```
 
 `metrics` is a list of dict. Each dict is the result of a single query execution.
@@ -108,7 +108,9 @@ However, if multiple query formats are provided, the following query format prec
 
 You can test concurrent query execution by listing the benchmark queries in a **file**.
 
-### Query file format
+Two query formats are supported.
+
+### Query file format: original
 The query file must contain queries that are separated using the following format:
 
 ```sql
@@ -120,11 +122,20 @@ SELECT * FROM us_population_2016 WHERE state in ('DE', 'MD', 'VA');
 
 ```
 
-## Viewing the metrics report
-Once all benchmark queries have been executed, Beaker will consolidate metrics of each query execution into a single Spark DataFrame.
-A temporary view is also created, to make querying the output and building local visualizations easier. 
+### Query file format: semicolon-delimited
+The query file must contain queries that are separated by a semicolon:
 
-The name of the view has the following format: `{name_of_benchmark}_vw`
+```sql
+-- some comment
+select * from foo;
+
+-- more comments
+SELECT * FROM us_population_2016 WHERE state in ('DE', 'MD', 'VA');
+```
+
+## Viewing the metrics report
+The metrics report is best viewed as a single dataframe (using ```spark_fixture.metrics_to_df_view``` as shown above).
+A temporary view is also created, to make querying the output and building local visualizations easier. 
 
 <img src="./assets/images/metrics_visualization.png" />
 
