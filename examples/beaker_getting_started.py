@@ -46,11 +46,11 @@ bm = benchmark.Benchmark()
 # COMMAND ----------
 
 # Change hostname and http_path to your dbsql warehouse
-hostname = 'e2-demo-field-eng.cloud.databricks.com'
-http_path = '/sql/1.0/warehouses/ead10bf07050390f'
+hostname = 'your-dbsql-hostname'
+http_path = 'your-dbsql-http-path'
 
 # Add the appropriate scope and key for your token
-pat = dbutils.secrets.get(scope='db-field-eng', key='e2-demo-db-access-token')
+pat = dbutils.secrets.get(scope='your-scope', key='your-token')
 
 # COMMAND ----------
 
