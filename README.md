@@ -14,9 +14,11 @@ Currently the package is not published to PyPi, so you will need to install the 
     <img src="./assets/images/db-workspace-library2.png" />
 3. Option 2: Install as cluster library
     Go to Libraries under your Cluster config.  
-    a. You can upload the wheel file directly to cluster library
+    a. You can choose the uploaded workspace library in above step, and install it on the cluster. Choose `Workspace` as `Library Source`
+    
+    b. Or you can upload the wheel file directly to cluster library
     <img src="./assets/images/db-cluster-library.png" />
-    b. Or you can choose the uploaded workspace library in above step
+    
 4. Option 3: Install as notebook-scoped library
    - Upload the wheelfile to `dbfs:/FileStore` then run `%pip install` in your notebook Python cell
    - `pip install path/to/your/whl_file`
