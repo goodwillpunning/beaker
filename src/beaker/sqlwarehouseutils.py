@@ -113,7 +113,7 @@ class SQLWarehouseUtils:
                 "Authorization": f"Bearer {self.access_token}"
             },
             json={
-                "name": "🧪 Beaker Benchmark Testing Warehouse",
+                "name": name,
                 "cluster_size": size,
                 "min_num_clusters": min_num_clusters,
                 "max_num_clusters": max_num_clusters,
