@@ -3,8 +3,9 @@ from setuptools import setup, find_packages
 setup(
     name="beaker",
     version="0.1",
+    #package_dir={"src"},
     package_dir={"": "src"},
-    packages=find_packages(where="src"),
+    # packages=find_packages(where="src"),
     author="Will Girten",
     author_email="will.girten@databricks.com",
     description="Setup and run queries on Databricks dbsql warehouse.",
