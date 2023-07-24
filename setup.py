@@ -3,8 +3,8 @@ from setuptools import setup, find_packages
 setup(
     name="beaker",
     version="0.1",
-    #package_dir={"src"},
-    package_dir={"": "src"},
+    packages=['beaker'],
+    #package_dir={"": "src"},
     # packages=find_packages(where="src"),
     author="Will Girten",
     author_email="will.girten@databricks.com",
