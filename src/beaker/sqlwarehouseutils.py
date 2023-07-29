@@ -66,6 +66,13 @@ class SQLWarehouseUtils:
                                               "Use `.setToken(token)` to add an API token."
         assert self.hostname is not None, "A Databricks hostname is needed to launch a compute instance. " \
                                           "Use `.setHostname(hostname)` to add a Databricks hostname."
+
+        # Determine the name for the sql warehouse, default to 🧪 Beaker Benchmark Testing Warehouse
+        if 'name' not in config:
+            name = '🧪 Beaker Benchmark Testing Warehouse'
+        else:
+            name = config['name'].strip()
+            
         # Determine the type of compute to lauch: warehouse or cluster
         if 'type' not in config:
             type = 'warehouse' # default to a SQL warehouse
@@ -113,7 +120,7 @@ class SQLWarehouseUtils:
                 "Authorization": f"Bearer {self.access_token}"
             },
             json={
-                "name": "🧪 Beaker Benchmark Testing Warehouse",
+                "name": name,
                 "cluster_size": size,
                 "min_num_clusters": min_num_clusters,
                 "max_num_clusters": max_num_clusters,

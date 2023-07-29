@@ -4,13 +4,34 @@ Execute query benchmark tests against Databricks SQL warehouses and clusters.
 <img src="./assets/images/beaker.png" width="200">
 
 ## Getting Started
+
+### Installation
+
+Currently the package is not published to PyPi, so you will need to install the custom Python whl file as workspace library, cluster library or notebook-scope library
+1. Download the python wheel file from the latest [release](https://github.com/goodwillpunning/beaker/releases)
+2. Option 1: Install as workspace library -> Go to Shared/Create/Library
+    <img src="./assets/images/db-workspace-library.png" />
+    <img src="./assets/images/db-workspace-library2.png" />
+3. Option 2: Install as cluster library
+    Go to Libraries under your Cluster config.  
+    a. You can choose the uploaded workspace library in above step, and install it on the cluster. Choose `Workspace` as `Library Source`
+    
+    b. Or you can upload the wheel file directly to cluster library
+    <img src="./assets/images/db-cluster-library.png" />
+    
+4. Option 3: Install as notebook-scoped library
+   - Upload the wheelfile to `dbfs:/FileStore` then run `%pip install` in your notebook Python cell
+   - `pip install path/to/your/whl_file`
+
+### Usage
+
 You can create a new Benchmark test by passing in the parameters to the constructor or set the parameters later.
 
 ```python
 from beaker import *
 
 # First, create a new Benchmark object, specifying connection parameters
-benchmark = Benchmark(query=query, hostname=hostname, http_path=http_path, token=pat)
+benchmark = Benchmark(query=query, hostname=hostname, http_path=http_path, token=token)
 ```
 
 The Benchmark class can also use a builder pattern to specify the connection parameters.
@@ -20,7 +41,7 @@ benchmark.setHostname(hostname=hostname)
 # HTTP path to an existing warehouse/cluster
 benchmark.setWarehouse(http_path=http_path)
 benchmark.setConcurrency(concurrency=10)
-benchmark.setWarehouseToken(token=pat)
+benchmark.setWarehouseToken(token=token)
 benchmark.setQuery(query=query)
 benchmark.setCatalog(catalog="hive_metastore")
 benchmark.preWarmTables(tables=["table_1", "table_2", "table_3"])
@@ -109,7 +130,7 @@ The name of the view has the following format: `{name_of_benchmark}_vw`
 <img src="./assets/images/metrics_visualization.png" />
 
 ## Contributing
-Please halp! Drop me a line at: will.girten@databricks.com if you're interested.
+Please help! Drop me a line at: will.girten@databricks.com if you're interested.
 
 ## Legal Information
 This software is provided as-is and is not officially supported by Databricks through customer technical support channels. Support, questions, and feature requests can be submitted through the Issues page of this repo. Please see the [legal agreement](LICENSE) and understand that issues with the use of this code will not be answered or investigated by Databricks Support.
