@@ -8,7 +8,7 @@ Execute query benchmark tests against Databricks SQL warehouses and clusters.
 There are three examples:
 
 #### examples/beaker_standalone.py
-Standalone. Run as `> python examples/beaker_standalone.py`.
+Standalone. Run from example directory as `> python beaker_standalone.py`.
 
 #### examples/getting_started.ipynb
 Run in any jupyter notebook environment.

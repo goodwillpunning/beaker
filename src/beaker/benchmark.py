@@ -6,10 +6,8 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from functools import reduce
-#from pyspark.sql import DataFrame
 
 from beaker.sqlwarehouseutils import SQLWarehouseUtils
-#from beaker.spark_fixture import get_spark_session
 
 
 class Benchmark:
@@ -28,7 +26,6 @@ class Benchmark:
         self.query_file = query_file
         self.query_file_dir = query_file_dir
         self.concurrency = concurrency
-        #self.hostname = self.setHostname(db_hostname)
         self.setHostname(db_hostname)
         self.http_path = warehouse_http_path
         self.token = token
@@ -40,7 +37,6 @@ class Benchmark:
         if new_warehouse_config is not None:
             self.setWarehouseConfig(new_warehouse_config)
         self.query_file_format = query_file_format
-        #self.spark = get_spark_session()
 
     def _get_user_id(self):
         """Helper method for filtering query history the current User's Id"""
@@ -95,7 +91,6 @@ class Benchmark:
             .replace("/", "") if hostname is not None else hostname
         self.hostname = hostname_clean
         logging.info(f'self.hostname = {self.hostname}')
-        #print(f'self.hostname = {self.hostname}')
 
     def setWarehouseToken(self, token):
         """Sets the API token for communicating with the SQL warehouse."""
@@ -136,13 +131,9 @@ class Benchmark:
         sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
-        #metrics = (id, self.hostname, self.http_path, self.concurrency, query, elapsed_time)
         metrics = {'id':id, 'hostname':self.hostname, 'http_path':self.http_path,
                    'concurrency':self.concurrency, 'query':query,
                    'elapsed_time':elapsed_time}
-        #metrics_df = self.spark.createDataFrame(metrics,
-        #                                        "id string, hostname string, warehouse string, concurrency int, query_text string, query_duration_secs string")
-        #return metrics_df
         return metrics
 
     def _set_default_catalog(self):
@@ -229,8 +220,6 @@ class Benchmark:
             metrics_list = list(
                 executor.map(lambda x: self._execute_single_query(*x),
                              queries))
-        #final_metrics_df = reduce(DataFrame.unionAll, metrics_list)
-        #return final_metrics_df
         return metrics_list
 
 
