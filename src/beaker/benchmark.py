@@ -168,14 +168,9 @@ class Benchmark:
         for idx, q in enumerate(fc.split(';')):
             q = q.strip()
             if not q: continue
-            rq = []
-            for l in q.split('\n'):
-                if not l.strip():
-                    continue
-                if filter_comment_lines and l.startswith('--'):
-                    print(f'filtering {l}')
-                    continue
-                rq.append(l)
+            # Keep non-empty lines.
+            # Also keep or remove comments depending on the flag.
+            rq = [l for l in q.split('\n') if l.strip() and not (filter_comment_lines and l.startswith('--'))]
             if rq:
                 queries.append(('\n'.join(rq), f'query{idx}',))
         return queries
