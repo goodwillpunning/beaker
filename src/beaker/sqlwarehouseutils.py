@@ -1,4 +1,6 @@
 import requests
+import logging
+import datetime
 
 from databricks import sql
 
@@ -7,10 +9,14 @@ class SQLWarehouseUtils:
     _LATEST_RUNTIME = '11.3.x-photon-scala2.12'
     _CLUSTER_SIZES = ["2X-Small", "X-Small", "Small", "Medium", "Large", "X-Large", "2X-Large", "3X-Large", "4X-Large"]
 
-    def __init__(self, hostname=None, warehouse_http_path=None, token=None, enable_results_caching=False):
+    def __init__(self, hostname=None, warehouse_http_path=None, token=None, catalog='hive_metastore', schema='default', enable_results_caching=False):
+        #print("SQLWarehouseUtils.__init__(%s)", (locals(),))
+        #print(f"setting hostname = {hostname}")
         self.hostname=hostname
         self.http_path=warehouse_http_path
         self.access_token=token
+        self.catalog=catalog
+        self.schema=schema
         self.enable_results_caching=enable_results_caching
 
     def _get_connection(self):
@@ -24,6 +30,8 @@ class SQLWarehouseUtils:
             server_hostname=self.hostname,
             http_path=self.http_path,
             access_token=self.access_token,
+            catalog=self.catalog,
+            schema=self.schema,
             session_configuration={"use_cached_result": results_caching})
         return connection
 
@@ -69,7 +77,8 @@ class SQLWarehouseUtils:
 
         # Determine the name for the sql warehouse, default to 🧪 Beaker Benchmark Testing Warehouse
         if 'name' not in config:
-            name = '🧪 Beaker Benchmark Testing Warehouse'
+            # Can't start 2 warehouses with the same name, so add a human readable timestamp
+            name = f'🧪 Beaker Benchmark Testing Warehouse {datetime.datetime.now()}'
         else:
             name = config['name'].strip()
             
@@ -138,5 +147,8 @@ class SQLWarehouseUtils:
                 }
             }
         )
-        warehouse_id = response.json()['id']
+        #logging.info(f"create cluster response: {response.json()}")
+        warehouse_id = response.json().get('id')
+        if not warehouse_id:
+            raise Exception(f"did not get back warehouse_id ({response.json()})")
         return warehouse_id

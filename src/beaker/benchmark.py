@@ -1,3 +1,4 @@
+import os, sys
 import time
 import re
 import requests
@@ -5,33 +6,37 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from functools import reduce
-from pyspark.sql import DataFrame
 
 from beaker.sqlwarehouseutils import SQLWarehouseUtils
-from beaker.spark_fixture import get_spark_session
 
 
 class Benchmark:
     """Encapsulates a query benchmark test."""
-
+    QUERY_FILE_FORMAT_ORIGINAL = "original"
+    QUERY_FILE_FORMAT_SEMICOLON_DELIM = "semicolon-delimited"
+    
     def __init__(self, name="Beaker Benchmark Test", query=None, query_file=None, query_file_dir=None, concurrency=1, db_hostname=None,
-                 warehouse_http_path=None, token=None, catalog='hive_metastore', new_warehouse_config=None,
-                 results_cache_enabled=False):
+                 warehouse_http_path=None, token=None, catalog='hive_metastore',
+                 schema='default',
+                 new_warehouse_config=None,
+                 results_cache_enabled=False,
+                 query_file_format=QUERY_FILE_FORMAT_ORIGINAL):
         self.name = self._clean_name(name)
         self.query = query
         self.query_file = query_file
         self.query_file_dir = query_file_dir
         self.concurrency = concurrency
-        self.hostname = self.setHostname(db_hostname)
+        self.setHostname(db_hostname)
         self.http_path = warehouse_http_path
         self.token = token
         self.catalog = catalog
+        self.schema = schema
         self.new_warehouse_config = new_warehouse_config
         self.results_cache_enabled = results_cache_enabled
         # Check if a new SQL warehouse needs to be created
         if new_warehouse_config is not None:
             self.setWarehouseConfig(new_warehouse_config)
-        self.spark = get_spark_session()
+        self.query_file_format = query_file_format
 
     def _get_user_id(self):
         """Helper method for filtering query history the current User's Id"""
@@ -85,6 +90,7 @@ class Benchmark:
         hostname_clean = hostname.strip().replace("http://", "").replace("https://", "") \
             .replace("/", "") if hostname is not None else hostname
         self.hostname = hostname_clean
+        logging.info(f'self.hostname = {self.hostname}')
 
     def setWarehouseToken(self, token):
         """Sets the API token for communicating with the SQL warehouse."""
@@ -94,17 +100,16 @@ class Benchmark:
         """Set the target Catalog to execute queries."""
         self.catalog = catalog
 
+    def setSchema(self, schema):
+        """Set the target schema to execute queries."""
+        self.schema = schema
+
     def setQuery(self, query):
         """Sets a single query to execute."""
         self.query = query
 
-    def _validateQueryFile(self, query_file):
-        """Validates the query file."""
-        return True
-
     def setQueryFile(self, query_file):
         """Sets the query file to use."""
-        assert self._validateQueryFile(query_file), "Invalid query file."
         self.query_file = query_file
 
     def _validateQueryFileDir(self, query_file_dir):
@@ -120,18 +125,26 @@ class Benchmark:
         query = query.strip()
         logging.info(query)
         start_time = time.perf_counter()
-        sql_warehouse = SQLWarehouseUtils(self.hostname, self.http_path, self.token, self.results_cache_enabled)
+        sql_warehouse = SQLWarehouseUtils(
+            self.hostname, self.http_path, self.token, self.catalog, self.schema,
+            self.results_cache_enabled)
         sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
-        metrics = [(id, self.hostname, self.http_path, self.concurrency, query, elapsed_time)]
-        metrics_df = self.spark.createDataFrame(metrics,
-                                                "id string, hostname string, warehouse string, concurrency int, query_text string, query_duration_secs string")
-        return metrics_df
+        metrics = {'id':id, 'hostname':self.hostname, 'http_path':self.http_path,
+                   'concurrency':self.concurrency, 'query':query,
+                   'elapsed_time':elapsed_time}
+        return metrics
 
     def _set_default_catalog(self):
-        query = f"USE CATALOG {self.catalog}"
-        self._execute_single_query(query)
+        if self.catalog:
+            query = f"USE CATALOG {self.catalog}"
+            self._execute_single_query(query)
+
+    def _set_default_schema(self):
+        if self.schema:
+            query = f"USE SCHEMA {self.schema}"
+            self._execute_single_query(query)
 
     def _parse_queries(self, raw_queries):
         split_raw = re.split(r"(Q\d+\n+)", raw_queries)[1:]
@@ -140,84 +153,90 @@ class Benchmark:
         queries = split_clean[1::2]
         return headers, queries
 
-    def _get_concurrent_queries(self, headers_list, queries_list, max_concurrency):
-        """Slices headers and queries into equal bins"""
-        for i in range(0, len(queries_list), max_concurrency):
-            headers = headers_list[i:(i + max_concurrency)]
-            queries = queries_list[i:(i + max_concurrency)]
-            yield list(zip(queries, headers))
+    def _get_queries_from_file_format_orig(self, f):
+        with open(f, 'r') as of:
+            raw_queries = of.read()
+            file_headers, file_queries = self._parse_queries(raw_queries)
+        queries = [e for e in zip(file_queries, file_headers)]
+        return queries
+
+    def _get_queries_from_file_format_semi(self, f, filter_comment_lines=False):
+        fc = None
+        queries = []
+        with open(f, 'r') as of:
+            fc = of.read()
+        for idx, q in enumerate(fc.split(';')):
+            q = q.strip()
+            if not q: continue
+            # Keep non-empty lines.
+            # Also keep or remove comments depending on the flag.
+            rq = [l for l in q.split('\n') if l.strip() and not (filter_comment_lines and l.startswith('--'))]
+            if rq:
+                queries.append(('\n'.join(rq), f'query{idx}',))
+        return queries
+
+    def _get_queries_from_file(self, query_file):
+        if self.query_file_format == self.QUERY_FILE_FORMAT_SEMICOLON_DELIM:
+            return self._get_queries_from_file_format_semi(query_file)
+        elif self.query_file_format == self.QUERY_FILE_FORMAT_ORIGINAL:
+            return self._get_queries_from_file_format_orig(query_file)
+        else:
+            raise Exception('unknown file format')
 
     def _execute_queries_from_file(self, query_file):
-        """Parses a file containing a list of queries to execute on a SQL warehouse."""
-        # Keep a list of unique query Ids/headers and query strings
-        headers = []
+        queries = self._get_queries_from_file(query_file)
+        metrics = self._execute_queries(queries, self.concurrency)
+        return metrics
+
+
+    def _get_query_filenames_from_dir(self, queries_dir):
+        return [os.path.join(queries_dir, f) for f in os.listdir(queries_dir)]
+
+    def _get_queries_from_dir(self, query_dir):
+        query_files = self._get_query_filenames_from_dir(query_dir)
         queries = []
+        for qf in query_files:
+            queries.append((open(qf).read(), qf.split('/')[-1]))
+        return queries
 
-        # Load queries from SQL file
-        logging.info(f"Loading queries from file: '{query_file}'")
-        query_file_cleaned = query_file.replace("dbfs:/", "/dbfs/")  # Replace `dbfs:` paths
+    def _execute_queries_from_dir(self, query_dir):
+        queries = self._get_queries_from_dir(query_dir)
+        metrics =  self._execute_queries(queries, self.concurrency)
+        return metrics
 
-        # Parse the raw SQL, splitting lines into a query identifier (header) and query string
-        with open(query_file_cleaned) as f:
-            raw_queries = f.read()
-            file_headers, file_queries = self._parse_queries(raw_queries)
-            headers = headers + file_headers
-            queries = queries + file_queries
+    def _execute_queries_from_query(self, query):
+        metrics = self._execute_queries([(query, 'query')], 1)
+        return metrics
 
-        # Split the list of queries into buckets determined by specified concurrency
-        bucketed_queries_list = list(self._get_concurrent_queries(headers, queries, self.concurrency))
-        logging.info(f"There are {len(queries)} total queries.")
-        logging.info(f"The concurrency is {self.concurrency}")
-        logging.info(f"There are {len(bucketed_queries_list)} buckets of queries")
 
-        # Take each bucket of queries and execute concurrently
-        final_metrics_result = []
-        for query_bucket in bucketed_queries_list:
-            logging.info(f'Executing {len(query_bucket)} queries concurrently.')
-            # Multi-thread query execution
-            queries_in_bucket = [query_with_header for query_with_header in query_bucket]
-            num_threads = len(queries_in_bucket)
-            with ThreadPoolExecutor(max_workers=num_threads) as executor:
-                # Maps the method '_execute_single_query' with a list of queries.
-                metrics_list = list(
-                    executor.map(lambda query_with_header: self._execute_single_query(*query_with_header),
-                                 query_bucket))
-                final_metrics_result = final_metrics_result + metrics_list
+    def _execute_queries(self, queries, num_threads):
+        metrics_list = None
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            metrics_list = list(
+                executor.map(lambda x: self._execute_single_query(*x),
+                             queries))
+        return metrics_list
 
-                # Union together the metrics DFs
-        if len(final_metrics_result) > 0:
-            final_metrics_df = reduce(DataFrame.unionAll, final_metrics_result)
-        else:
-            final_metrics_df = self.spark.sparkContext.emptyRDD()
-        return final_metrics_df
 
     def execute(self):
         """Executes the benchmark test."""
         logging.info("Executing benchmark test.")
         # Set which Catalog to use
         self._set_default_catalog()
-        # Query format precedence:
-        # 1. Query File Dir
-        # 2. Query File
-        # 3. Single Query
+        self._set_default_schema()
+        metrics = None
         if self.query_file_dir is not None:
             logging.info("Loading query files from directory.")
-            # TODO: Implement query directory parsing
-            # metrics_df = self._execute_queries_from_dir(self.query_file_dir)
-            metrics_df = self.spark.sparkContext.emptyRDD
+            metrics = self._execute_queries_from_dir(self.query_file_dir)
         elif self.query_file is not None:
             logging.info("Loading query file.")
-            metrics_df = self._execute_queries_from_file(self.query_file)
+            metrics = self._execute_queries_from_file(self.query_file)
         elif self.query is not None:
             logging.info("Executing single query.")
-            metrics_df = self._execute_single_query(self.query)
+            metrics = self._execute_queries_from_query(self.query)
         else:
             raise ValueError("No query specified.")
-        metrics_vw = f"{self.name}_vw"
-        metrics_df.createOrReplaceTempView(metrics_vw)
-        logging.info(f"View `{metrics_vw}` has been created with benchmark results.")
-        print(f"Note: You can query the results of this benchmark test by querying the temporary view `{self.name}_vw`")
-        return metrics_df
+        return metrics
 
     def preWarmTables(self, tables):
         """Delta caches the table before running a benchmark test."""
