@@ -1,11 +1,9 @@
-import os, sys
+import os
 import time
 import re
 import requests
 import logging
 from concurrent.futures import ThreadPoolExecutor
-
-from functools import reduce
 
 from beaker.sqlwarehouseutils import SQLWarehouseUtils
 
