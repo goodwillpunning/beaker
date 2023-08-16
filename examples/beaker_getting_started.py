@@ -15,7 +15,7 @@ from databricks import sql
 # COMMAND ----------
 
 # change as required to import the beaker module
-sys.path.append(f'{os.getcwd()}/../src')
+sys.path.append(f"{os.getcwd()}/../src")
 
 # COMMAND ----------
 
@@ -26,6 +26,7 @@ from beaker import spark_fixture
 
 # reload for changes in benchmark
 import importlib
+
 importlib.reload(benchmark)
 
 # COMMAND ----------
@@ -46,11 +47,11 @@ bm = benchmark.Benchmark()
 # COMMAND ----------
 
 # Change hostname and http_path to your dbsql warehouse
-hostname = 'your-dbsql-hostname'
-http_path = 'your-dbsql-http-path'
+hostname = "your-dbsql-hostname"
+http_path = "your-dbsql-http-path"
 
 # Add the appropriate scope and key for your token
-pat = dbutils.secrets.get(scope='your-scope', key='your-token')
+pat = dbutils.secrets.get(scope="your-scope", key="your-token")
 
 # COMMAND ----------
 
@@ -63,7 +64,7 @@ bm.setConcurrency(concurrency=1)
 bm.setWarehouseToken(token=pat)
 
 # Define the query to execute and target Catalog
-query_str="""
+query_str = """
 SELECT count(*)
   FROM delta.`/databricks-datasets/nyctaxi/tables/nyctaxi_yellow`
  WHERE passenger_count > 2
@@ -87,7 +88,7 @@ metrics
 
 # COMMAND ----------
 
-df_simple_test = spark_fixture.metrics_to_df_view(metrics, 'simple_test_vw')
+df_simple_test = spark_fixture.metrics_to_df_view(metrics, "simple_test_vw")
 df_simple_test.display()
 
 # COMMAND ----------
@@ -103,17 +104,18 @@ df_simple_test.display()
 # COMMAND ----------
 
 import importlib
+
 importlib.reload(benchmark)
 
 # COMMAND ----------
 
 new_warehouse_config = {
-  "type": "warehouse",
-  "runtime": "latest",
-  "size": "Large",
-  "min_num_clusters": 1,
-  "max_num_clusters": 3,
-  "enable_photon": True
+    "type": "warehouse",
+    "runtime": "latest",
+    "size": "Large",
+    "min_num_clusters": 1,
+    "max_num_clusters": 3,
+    "enable_photon": True,
 }
 
 # Create a new Benchmark Test object
@@ -137,7 +139,7 @@ print(metrics)
 
 # MAGIC %md
 # MAGIC ## Execute Multiple Queries Concurrently
-# MAGIC `Beaker` was created with concurrency in mind. For example, it's useful for answering questions like, "How will a SQL warehouse perform under peak, interactive usage?". 
+# MAGIC `Beaker` was created with concurrency in mind. For example, it's useful for answering questions like, "How will a SQL warehouse perform under peak, interactive usage?".
 # MAGIC
 # MAGIC You can test concurrent query execution by listing the benchmark queries in a **file**.
 # MAGIC
@@ -154,7 +156,9 @@ print(metrics)
 # COMMAND ----------
 
 # First, create a query file using the format above
-dbutils.fs.put("file:/tmp/my_query_file.sql", """
+dbutils.fs.put(
+    "file:/tmp/my_query_file.sql",
+    """
 Q1
 
 SELECT count(*)
@@ -166,7 +170,9 @@ Q2
 SELECT count(*)
   FROM delta.`/databricks-datasets/nyctaxi/tables/nyctaxi_yellow`
  WHERE passenger_count > 2
-""", overwrite=True)
+""",
+    overwrite=True,
+)
 
 # COMMAND ----------
 
@@ -187,5 +193,3 @@ metrics = bm.execute()
 print(metrics)
 
 # COMMAND ----------
-
-

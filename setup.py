@@ -8,8 +8,8 @@ setup(
     author="Will Girten",
     author_email="will.girten@databricks.com",
     description="Setup and run queries on Databricks dbsql warehouse.",
-    long_description=open('README.md').read(),
+    long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/goodwillpunning/beaker",
-    license='MIT',
+    license="MIT",
 )
