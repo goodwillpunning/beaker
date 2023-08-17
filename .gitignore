@@ -3,3 +3,6 @@
 
 # Just Apple stuff.
 .DS_Store
+
+# VSCode
+*__pycache__*

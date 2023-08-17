@@ -1,11 +1,9 @@
-import os, sys
+import os
 import time
 import re
 import requests
 import logging
 from concurrent.futures import ThreadPoolExecutor
-
-from functools import reduce
 
 from beaker.sqlwarehouseutils import SQLWarehouseUtils
 
@@ -15,7 +13,8 @@ class Benchmark:
     QUERY_FILE_FORMAT_ORIGINAL = "original"
     QUERY_FILE_FORMAT_SEMICOLON_DELIM = "semicolon-delimited"
     
-    def __init__(self, name="Beaker Benchmark Test", query=None, query_file=None, query_file_dir=None, concurrency=1, db_hostname=None,
+    def __init__(self, name="Beaker Benchmark Test", query=None, query_file=None, query_file_dir=None, concurrency=1, query_repeat_count=1,
+                 db_hostname=None,
                  warehouse_http_path=None, token=None, catalog='hive_metastore',
                  schema='default',
                  new_warehouse_config=None,
@@ -26,6 +25,7 @@ class Benchmark:
         self.query_file = query_file
         self.query_file_dir = query_file_dir
         self.concurrency = concurrency
+        self.query_repeat_count = query_repeat_count 
         self.setHostname(db_hostname)
         self.http_path = warehouse_http_path
         self.token = token
@@ -84,6 +84,11 @@ class Benchmark:
     def setConcurrency(self, concurrency):
         """Sets the query execution parallelism."""
         self.concurrency = concurrency
+
+    def setQueryRepeatCount(self, query_repeat_count):
+        """Sets the number of times a passed query will be repeatedly run."""
+        assert int(query_repeat_count) > 0, "Query repeat count must be > 0."
+        self.query_repeat_count = int(query_repeat_count)
 
     def setHostname(self, hostname):
         """Sets the Databricks workspace hostname."""
@@ -210,6 +215,9 @@ class Benchmark:
 
 
     def _execute_queries(self, queries, num_threads):
+        # Duplicate queries `query_repeat_count` number of times
+        queries = queries * self.query_repeat_count
+
         metrics_list = None
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             metrics_list = list(
@@ -259,6 +267,7 @@ class Benchmark:
     query_file={self.query_file}
     query_file_dir={self.query_file_dir}
     concurrency={self.concurrency}
+    query_repeat_count={self.query_repeat_count}
     hostname={self.hostname}
     warehouse_http_path={self.http_path}
     """
