@@ -10,22 +10,33 @@ from beaker.sqlwarehouseutils import SQLWarehouseUtils
 
 class Benchmark:
     """Encapsulates a query benchmark test."""
+
     QUERY_FILE_FORMAT_ORIGINAL = "original"
     QUERY_FILE_FORMAT_SEMICOLON_DELIM = "semicolon-delimited"
-    
-    def __init__(self, name="Beaker Benchmark Test", query=None, query_file=None, query_file_dir=None, concurrency=1, query_repeat_count=1,
-                 db_hostname=None,
-                 warehouse_http_path=None, token=None, catalog='hive_metastore',
-                 schema='default',
-                 new_warehouse_config=None,
-                 results_cache_enabled=False,
-                 query_file_format=QUERY_FILE_FORMAT_ORIGINAL):
+
+    def __init__(
+        self,
+        name="Beaker Benchmark Test",
+        query=None,
+        query_file=None,
+        query_file_dir=None,
+        concurrency=1,
+        query_repeat_count=1,
+        db_hostname=None,
+        warehouse_http_path=None,
+        token=None,
+        catalog="hive_metastore",
+        schema="default",
+        new_warehouse_config=None,
+        results_cache_enabled=False,
+        query_file_format=QUERY_FILE_FORMAT_ORIGINAL,
+    ):
         self.name = self._clean_name(name)
         self.query = query
         self.query_file = query_file
         self.query_file_dir = query_file_dir
         self.concurrency = concurrency
-        self.query_repeat_count = query_repeat_count 
+        self.query_repeat_count = query_repeat_count
         self.setHostname(db_hostname)
         self.http_path = warehouse_http_path
         self.token = token
@@ -42,11 +53,9 @@ class Benchmark:
         """Helper method for filtering query history the current User's Id"""
         response = requests.get(
             f"https://{self.hostname}/api/2.0/preview/scim/v2/Me",
-            headers={
-                "Authorization": f"Bearer {self.token}"
-            }
+            headers={"Authorization": f"Bearer {self.token}"},
         )
-        return response.json()['id']
+        return response.json()["id"]
 
     def _validate_warehouse(self, http_path):
         """Validates the SQL warehouse HTTP path."""
@@ -66,7 +75,7 @@ class Benchmark:
 
     def setName(self, name):
         """Sets the name of the Benchmark Test."""
-        self.name=self._clean_name(name)
+        self.name = self._clean_name(name)
 
     def setWarehouseConfig(self, config):
         """Launches a new cluster/warehouse from a JSON config."""
@@ -92,10 +101,16 @@ class Benchmark:
 
     def setHostname(self, hostname):
         """Sets the Databricks workspace hostname."""
-        hostname_clean = hostname.strip().replace("http://", "").replace("https://", "") \
-            .replace("/", "") if hostname is not None else hostname
+        hostname_clean = (
+            hostname.strip()
+            .replace("http://", "")
+            .replace("https://", "")
+            .replace("/", "")
+            if hostname is not None
+            else hostname
+        )
         self.hostname = hostname_clean
-        logging.info(f'self.hostname = {self.hostname}')
+        logging.info(f"self.hostname = {self.hostname}")
 
     def setWarehouseToken(self, token):
         """Sets the API token for communicating with the SQL warehouse."""
@@ -123,7 +138,9 @@ class Benchmark:
 
     def setQueryFileDir(self, query_file_dir):
         """Sets the directory to load query files."""
-        assert self._validateQueryFileDir(query_file_dir), "Invalid query file directory."
+        assert self._validateQueryFileDir(
+            query_file_dir
+        ), "Invalid query file directory."
         self.query_file_dir = query_file_dir
 
     def _execute_single_query(self, query, id=None):
@@ -131,14 +148,24 @@ class Benchmark:
         logging.info(query)
         start_time = time.perf_counter()
         sql_warehouse = SQLWarehouseUtils(
-            self.hostname, self.http_path, self.token, self.catalog, self.schema,
-            self.results_cache_enabled)
+            self.hostname,
+            self.http_path,
+            self.token,
+            self.catalog,
+            self.schema,
+            self.results_cache_enabled,
+        )
         sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
-        metrics = {'id':id, 'hostname':self.hostname, 'http_path':self.http_path,
-                   'concurrency':self.concurrency, 'query':query,
-                   'elapsed_time':elapsed_time}
+        metrics = {
+            "id": id,
+            "hostname": self.hostname,
+            "http_path": self.http_path,
+            "concurrency": self.concurrency,
+            "query": query,
+            "elapsed_time": elapsed_time,
+        }
         return metrics
 
     def _set_default_catalog(self):
@@ -159,7 +186,7 @@ class Benchmark:
         return headers, queries
 
     def _get_queries_from_file_format_orig(self, f):
-        with open(f, 'r') as of:
+        with open(f, "r") as of:
             raw_queries = of.read()
             file_headers, file_queries = self._parse_queries(raw_queries)
         queries = [e for e in zip(file_queries, file_headers)]
@@ -168,16 +195,26 @@ class Benchmark:
     def _get_queries_from_file_format_semi(self, f, filter_comment_lines=False):
         fc = None
         queries = []
-        with open(f, 'r') as of:
+        with open(f, "r") as of:
             fc = of.read()
-        for idx, q in enumerate(fc.split(';')):
+        for idx, q in enumerate(fc.split(";")):
             q = q.strip()
-            if not q: continue
+            if not q:
+                continue
             # Keep non-empty lines.
             # Also keep or remove comments depending on the flag.
-            rq = [l for l in q.split('\n') if l.strip() and not (filter_comment_lines and l.startswith('--'))]
+            rq = [
+                l
+                for l in q.split("\n")
+                if l.strip() and not (filter_comment_lines and l.startswith("--"))
+            ]
             if rq:
-                queries.append(('\n'.join(rq), f'query{idx}',))
+                queries.append(
+                    (
+                        "\n".join(rq),
+                        f"query{idx}",
+                    )
+                )
         return queries
 
     def _get_queries_from_file(self, query_file):
@@ -186,13 +223,12 @@ class Benchmark:
         elif self.query_file_format == self.QUERY_FILE_FORMAT_ORIGINAL:
             return self._get_queries_from_file_format_orig(query_file)
         else:
-            raise Exception('unknown file format')
+            raise Exception("unknown file format")
 
     def _execute_queries_from_file(self, query_file):
         queries = self._get_queries_from_file(query_file)
         metrics = self._execute_queries(queries, self.concurrency)
         return metrics
-
 
     def _get_query_filenames_from_dir(self, queries_dir):
         return [os.path.join(queries_dir, f) for f in os.listdir(queries_dir)]
@@ -201,18 +237,17 @@ class Benchmark:
         query_files = self._get_query_filenames_from_dir(query_dir)
         queries = []
         for qf in query_files:
-            queries.append((open(qf).read(), qf.split('/')[-1]))
+            queries.append((open(qf).read(), qf.split("/")[-1]))
         return queries
 
     def _execute_queries_from_dir(self, query_dir):
         queries = self._get_queries_from_dir(query_dir)
-        metrics =  self._execute_queries(queries, self.concurrency)
+        metrics = self._execute_queries(queries, self.concurrency)
         return metrics
 
     def _execute_queries_from_query(self, query):
-        metrics = self._execute_queries([(query, 'query')], 1)
+        metrics = self._execute_queries([(query, "query")], 1)
         return metrics
-
 
     def _execute_queries(self, queries, num_threads):
         # Duplicate queries `query_repeat_count` number of times
@@ -221,10 +256,9 @@ class Benchmark:
         metrics_list = None
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             metrics_list = list(
-                executor.map(lambda x: self._execute_single_query(*x),
-                             queries))
+                executor.map(lambda x: self._execute_single_query(*x), queries)
+            )
         return metrics_list
-
 
     def execute(self):
         """Executes the benchmark test."""
@@ -248,9 +282,13 @@ class Benchmark:
 
     def preWarmTables(self, tables):
         """Delta caches the table before running a benchmark test."""
-        assert self.http_path is not None, "No running warehouse. " \
-                                           "You can launch a new ware house by calling `.setWarehouseConfig()`."
-        assert self.catalog is not None, "No catalog provided. You can add a catalog by calling `.setCatalog()`."
+        assert self.http_path is not None, (
+            "No running warehouse. "
+            "You can launch a new ware house by calling `.setWarehouseConfig()`."
+        )
+        assert (
+            self.catalog is not None
+        ), "No catalog provided. You can add a catalog by calling `.setCatalog()`."
         self._execute_single_query(f"USE CATALOG {self.catalog}")
         for table in tables:
             logging.info(f"Pre-warming table: {table}")

@@ -1,9 +1,10 @@
 import os, sys
 import logging
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-sys.path.append('../src')
+sys.path.append("../src")
 
 from beaker import benchmark
 
@@ -21,7 +22,7 @@ bm.setConcurrency(concurrency=1)
 bm.setWarehouseToken(token=access_token)
 
 print("---- Specify query in code ------")
-query_str="""
+query_str = """
 SELECT count(*)
   FROM delta.`/databricks-datasets/nyctaxi/tables/nyctaxi_yellow`
  WHERE passenger_count > 2
@@ -35,12 +36,12 @@ print(metrics)
 
 print("---- Specify a single query file ------")
 bm.query_file_format = "semicolon-delimited"
-bm.setQueryFile('queries/q1.sql')
+bm.setQueryFile("queries/q1.sql")
 metrics = bm.execute()
 print(metrics)
 
 
 print("---- Specify a query directory ------")
-bm.setQueryFileDir('queries')
+bm.setQueryFileDir("queries")
 metrics = bm.execute()
 print(metrics)
