@@ -4,17 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "beaker"
-version = "0.0.2"
-authors = [
-    { name="Will Girten", email="will.girten@databricks.com" },
-]
-description = "Execute benchmark queries against a Databricks SQL warehouse or cluster."
+dynamic = ["version"]
+description = "Setup and run queries on Databricks dbsql warehouse."
 readme = "README.md"
-requires-python = ">=3.7"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: Other/Proprietary License",
-    "Operating System :: OS Independent",
+license = "MIT"
+authors = [
+    { name = "Will Girten", email = "will.girten@databricks.com" },
 ]
 dependencies = [
     "requests",
@@ -23,5 +18,12 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/goodwillpunning/beaker"
-"Bug Tracker" = "https://github.com/goodwillpunning/beaker/issues"
+Homepage = "https://github.com/goodwillpunning/beaker"
+
+[tool.hatch.version]
+path = "src/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+]
