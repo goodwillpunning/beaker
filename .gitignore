@@ -7,3 +7,6 @@
 # VSCode
 *__pycache__*
 .vscode
+
+# Build helpers
+*beaker.egg-info*
