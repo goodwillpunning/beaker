@@ -146,7 +146,6 @@ class Benchmark:
     def _execute_single_query(self, query, id=None):
         query = query.strip()
         logging.info(query)
-        start_time = time.perf_counter()
         sql_warehouse = SQLWarehouseUtils(
             self.hostname,
             self.http_path,
@@ -155,6 +154,7 @@ class Benchmark:
             self.schema,
             self.results_cache_enabled,
         )
+        start_time = time.perf_counter()
         sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
