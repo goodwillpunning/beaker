@@ -4,9 +4,12 @@ import re
 import requests
 import logging
 from concurrent.futures import ThreadPoolExecutor
+import threading
 
 from beaker.sqlwarehouseutils import SQLWarehouseUtils
 
+# Create thread-local storage
+thread_local = threading.local()
 
 class Benchmark:
     """Encapsulates a query benchmark test."""
@@ -48,6 +51,23 @@ class Benchmark:
         if new_warehouse_config is not None:
             self.setWarehouseConfig(new_warehouse_config)
         self.query_file_format = query_file_format
+
+    def _create_dbc(self):
+        sql_warehouse = SQLWarehouseUtils(
+            self.hostname,
+            self.http_path,
+            self.token,
+            self.catalog,
+            self.schema,
+            self.results_cache_enabled,
+        )
+        logging.info(f"Returning new connection: {sql_warehouse}")
+        return sql_warehouse
+
+    def _get_thread_local_connection(self):
+        if not hasattr(thread_local, "connection"):
+            thread_local.connection = self._create_dbc()
+        return thread_local.connection
 
     def _get_user_id(self):
         """Helper method for filtering query history the current User's Id"""
@@ -146,15 +166,18 @@ class Benchmark:
     def _execute_single_query(self, query, id=None):
         query = query.strip()
         logging.info(query)
+
+        # sql_warehouse = SQLWarehouseUtils(
+        #     self.hostname,
+        #     self.http_path,
+        #     self.token,
+        #     self.catalog,
+        #     self.schema,
+        #     self.results_cache_enabled,
+        # )
+        sql_warehouse = self._get_thread_local_connection()
+
         start_time = time.perf_counter()
-        sql_warehouse = SQLWarehouseUtils(
-            self.hostname,
-            self.http_path,
-            self.token,
-            self.catalog,
-            self.schema,
-            self.results_cache_enabled,
-        )
         sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
