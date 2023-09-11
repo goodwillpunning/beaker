@@ -68,7 +68,6 @@ class SQLWarehouseUtils:
         cursor = self.connection.cursor()
         result = cursor.execute(query_str)
         cursor.close()
-        #connection.close()
 
     def get_rows(self, query_str):
         cursor = self.connection.cursor()

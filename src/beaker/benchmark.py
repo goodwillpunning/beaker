@@ -167,14 +167,6 @@ class Benchmark:
         query = query.strip()
         logging.info(query)
 
-        # sql_warehouse = SQLWarehouseUtils(
-        #     self.hostname,
-        #     self.http_path,
-        #     self.token,
-        #     self.catalog,
-        #     self.schema,
-        #     self.results_cache_enabled,
-        # )
         sql_warehouse = self._get_thread_local_connection()
 
         start_time = time.perf_counter()
