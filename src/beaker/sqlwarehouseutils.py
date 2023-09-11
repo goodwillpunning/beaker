@@ -1,7 +1,7 @@
 import requests
 import datetime
 from databricks import sql
-
+import logging
 
 class SQLWarehouseUtils:
     _LATEST_RUNTIME = "11.3.x-photon-scala2.12"
@@ -34,6 +34,10 @@ class SQLWarehouseUtils:
         self.catalog = catalog
         self.schema = schema
         self.enable_results_caching = enable_results_caching
+        self.connection = self._get_connection()
+
+    def __del__(self):
+        self.close_connection()
 
     def _get_connection(self):
         # Enable/disable results caching on the SQL warehouse
@@ -50,22 +54,27 @@ class SQLWarehouseUtils:
             schema=self.schema,
             session_configuration={"use_cached_result": results_caching},
         )
+        logging.info(f"Created new connection: {connection}")
         return connection
 
+    def close_connection(self):
+        try:
+            if self.connection:
+                self.connection.close()
+        except:
+            pass
+
     def execute_query(self, query_str):
-        connection = self._get_connection()
-        cursor = connection.cursor()
+        cursor = self.connection.cursor()
         result = cursor.execute(query_str)
         cursor.close()
-        connection.close()
+        #connection.close()
 
     def get_rows(self, query_str):
-        connection = self._get_connection()
-        cursor = connection.cursor()
+        cursor = self.connection.cursor()
         cursor.execute(query_str)
         rows = cursor.fetchall()
         cursor.close()
-        connection.close()
         return rows
 
     def setToken(self, token):

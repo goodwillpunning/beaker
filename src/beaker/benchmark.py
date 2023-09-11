@@ -61,7 +61,7 @@ class Benchmark:
             self.schema,
             self.results_cache_enabled,
         )
-        logging.info(f"Returning new connection: {sql_warehouse}")
+        logging.info(f"Returning new sqlwarehouseutils: {sql_warehouse}")
         return sql_warehouse
 
     def _get_thread_local_connection(self):
@@ -286,9 +286,6 @@ class Benchmark:
     def execute(self):
         """Executes the benchmark test."""
         logging.info("Executing benchmark test.")
-        # Set which Catalog to use
-        self._set_default_catalog()
-        self._set_default_schema()
         metrics = None
         if self.query_file_dir is not None:
             logging.info("Loading query files from directory.")
