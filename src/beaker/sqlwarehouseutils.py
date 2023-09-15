@@ -65,16 +65,14 @@ class SQLWarehouseUtils:
             pass
 
     def execute_query(self, query_str):
-        cursor = self.connection.cursor()
-        result = cursor.execute(query_str)
-        cursor.close()
+        with self.connection.cursor() as cursor:
+            result = cursor.execute(query_str)
 
     def get_rows(self, query_str):
-        cursor = self.connection.cursor()
-        cursor.execute(query_str)
-        rows = cursor.fetchall()
-        cursor.close()
-        return rows
+        with self.connection.cursor() as cursor:
+            cursor.execute(query_str)
+            rows = cursor.fetchall()
+            return rows
 
     def setToken(self, token):
         self.access_token = token
