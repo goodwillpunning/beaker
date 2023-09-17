@@ -18,7 +18,7 @@ access_token = os.getenv("DATABRICKS_ACCESS_TOKEN")
 bm.setName(name="simple_test")
 bm.setHostname(hostname=hostname)
 bm.setWarehouse(http_path=http_path)
-bm.setConcurrency(concurrency=1)
+bm.setConcurrency(concurrency=2)
 bm.setWarehouseToken(token=access_token)
 
 print("---- Specify query in code ------")
