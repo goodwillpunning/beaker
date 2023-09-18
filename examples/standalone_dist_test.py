@@ -7,7 +7,7 @@
 # Copy this file to the python env where you have pip installed the dist.
 # > python standalone_dist_test.py
 
-import os, sys
+import os
 from beaker import benchmark
 
 import logging
@@ -30,5 +30,3 @@ bm.setQuery("select now(), 'foo';")
 bm.setQueryRepeatCount(100)
 
 metrics = bm.execute()
-#print(metrics)
-

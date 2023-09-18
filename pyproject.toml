@@ -5,15 +5,17 @@ build-backend = "hatchling.build"
 [project]
 name = "beaker"
 dynamic = ["version"]
-description = "Setup and run queries on Databricks dbsql warehouse."
+description = "Execute query benchmarks against Databricks SQL warehouses and clusters."
 readme = "README.md"
-license = "MIT"
 authors = [
     { name = "Will Girten", email = "will.girten@databricks.com" },
+    { name = "Nishant Deshpande", email = "nishant.deshpande@databricks.com"},
+    { name = "Michael Berk", email = "michael.berk@databricks.com"}
 ]
+keywords = ["Spark", "Databricks", "DBSQL", "Benchmark"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: Other/Proprietary License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
 ]
 requires-python = ">=3.7"
