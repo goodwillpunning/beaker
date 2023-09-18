@@ -4,7 +4,7 @@ from databricks import sql
 import logging
 
 class SQLWarehouseUtils:
-    _LATEST_RUNTIME = "11.3.x-photon-scala2.12"
+    _LATEST_RUNTIME = "13.3.x-scala2.12"
     _CLUSTER_SIZES = [
         "2X-Small",
         "X-Small",
@@ -26,8 +26,6 @@ class SQLWarehouseUtils:
         schema="default",
         enable_results_caching=False,
     ):
-        # print("SQLWarehouseUtils.__init__(%s)", (locals(),))
-        # print(f"setting hostname = {hostname}")
         self.hostname = hostname
         self.http_path = warehouse_http_path
         self.access_token = token
@@ -61,8 +59,9 @@ class SQLWarehouseUtils:
         try:
             if self.connection:
                 self.connection.close()
-        except:
-            pass
+        except Exception as err:
+            print(f"Unexpected {err}, {type(err)}")
+            raise
 
     def execute_query(self, query_str):
         with self.connection.cursor() as cursor:
@@ -173,7 +172,6 @@ class SQLWarehouseUtils:
                 "channel": {"name": "CHANNEL_NAME_CURRENT"},
             },
         )
-        # logging.info(f"create cluster response: {response.json()}")
         warehouse_id = response.json().get("id")
         if not warehouse_id:
             raise Exception(f"did not get back warehouse_id ({response.json()})")
