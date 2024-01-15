@@ -25,25 +25,32 @@ class SQLWarehouseUtils:
         catalog="hive_metastore",
         schema="default",
         enable_results_caching=False,
+        new_warehouse_config=None,
     ):
         self.hostname = hostname
         self.http_path = warehouse_http_path
+        self.new_warehouse_config = new_warehouse_config
         self.access_token = token
         self.catalog = catalog
         self.schema = schema
         self.enable_results_caching = enable_results_caching
-        self.connection = self._get_connection()
+        # this won't work if warehouse hasn't been created
+        # self.connection = self.get_connection()
+        self.connection = None
+
 
     def __del__(self):
         self.close_connection()
 
-    def _get_connection(self):
+    def setConnection(self):
         # Enable/disable results caching on the SQL warehouse
         # https://docs.databricks.com/sql/admin/query-caching.html
         if self.enable_results_caching:
             results_caching = "true"
         else:
             results_caching = "false"
+
+        # If the warehouse already exists:
         connection = sql.connect(
             server_hostname=self.hostname,
             http_path=self.http_path,
@@ -53,15 +60,18 @@ class SQLWarehouseUtils:
             session_configuration={"use_cached_result": results_caching},
         )
         logging.info(f"Created new connection: {connection}")
-        return connection
+        self.connection = connection
 
     def close_connection(self):
-        try:
-            if self.connection:
-                self.connection.close()
-        except Exception as err:
-            print(f"Unexpected {err}, {type(err)}")
-            raise
+        # Only close connection is self.connection exists, no need to raise Exception
+        if self.connection:
+            self.connection.close()
+        # try:
+        #     if self.connection:
+        #         self.connection.close()
+        # except Exception as err:
+        #     print(f"Unexpected {err}, {type(err)}")
+        #     raise
 
     def execute_query(self, query_str):
         with self.connection.cursor() as cursor:
@@ -78,6 +88,15 @@ class SQLWarehouseUtils:
 
     def setHostname(self, hostname):
         self.hostname = hostname
+
+    def setCatalog(self, catalog):
+        self.catalog = catalog
+
+    def setSchema(self, schema):
+        self.schema = schema
+
+    def setEnableResultCaching(self, results_cache_enabled):
+        self.enable_results_caching = results_cache_enabled
 
     def _get_spark_runtimes(self):
         """Gets a list of the latest Spark runtimes."""
@@ -175,4 +194,5 @@ class SQLWarehouseUtils:
         warehouse_id = response.json().get("id")
         if not warehouse_id:
             raise Exception(f"did not get back warehouse_id ({response.json()})")
+        self.http_path = f"/sql/1.0/warehouses/{warehouse_id}"
         return warehouse_id

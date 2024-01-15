@@ -10,3 +10,4 @@
 
 # Build helpers
 *beaker.egg-info*
+build/*
