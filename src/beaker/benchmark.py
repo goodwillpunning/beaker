@@ -62,6 +62,7 @@ class Benchmark:
             self.schema,
             self.results_cache_enabled,
         )
+        # Check for the warehouse state 
         # establish connection on the existing warehouse
         sql_warehouse.setConnection()
         logging.info(f"Returning new sqlwarehouseutils: {sql_warehouse}")

@@ -2,6 +2,7 @@ import requests
 import datetime
 from databricks import sql
 import logging
+import time
 
 class SQLWarehouseUtils:
     _LATEST_RUNTIME = "13.3.x-scala2.12"
@@ -50,7 +51,19 @@ class SQLWarehouseUtils:
         else:
             results_caching = "false"
 
-        # If the warehouse already exists:
+        assert self.http_path, ("Warehouse doesn't exist to create connection")
+        # # If the warehouse already exists
+        # ## Start the warehouse
+        # warehouse_id = self.http_path.split("/")[-1]
+        # self._start_warehouse(warehouse_id)
+        # # Give a few seconds for serverless warehouse to start
+        # time.sleep(5)
+        # # Wait for warehouse to start, for pro and classic
+        # while self._get_warehouse_state(warehouse_id) != "RUNNING":
+        #     print(f"Waiting for warehouse {warehouse_id} to start (40s)...")
+        #     time.sleep(40)
+
+        ## Create connection after warehouse is started
         connection = sql.connect(
             server_hostname=self.hostname,
             http_path=self.http_path,
@@ -106,6 +119,23 @@ class SQLWarehouseUtils:
         )
         result = list(map(lambda v: v["key"], response.json()["versions"]))
         return result
+    
+    def _get_warehouse_state(self, warehouse_id):
+        """ Check for warehouse state"""
+        response = requests.get(f"https://{self.hostname}/api/2.0/sql/warehouses/{warehouse_id}", 
+                         headers={"Authorization": f"Bearer {self.access_token}"})
+        warehouse_state = response.json()["state"]
+        return warehouse_state
+
+    def _start_warehouse(self, warehouse_id):
+        """ Check for warehouse state"""
+        warehouse_state = _get_warehouse_state(warehouse_id)
+        if warehouse_state != "RUNNING":
+            print("Warehouse in state: ", warehouse_state)
+            print(f"Starting warehouse {warehouse_id}...")
+            response = requests.post(f"https://{self.hostname}/api/2.0/sql/warehouses/{warehouse_id}/start", 
+                            headers={"Authorization": f"Bearer {self.access_token}"})
+            assert response.status_code == 200, (f"Warehouse {warehouse_id} failed to start")
 
     def launch_warehouse(self, config):
         """Creates a new SQL warehouse based upon a config."""
@@ -134,6 +164,27 @@ class SQLWarehouseUtils:
                 "Invalid compute 'type' provided. "
                 "Allowed types include: ['warehouse', 'cluster']."
             )
+
+        # Determine the Warehouse type (classic, pro, serverless) to launch
+        # warehouse_type: PRO or CLASSIC. If you want to use serverless compute, you must set to PRO and also set the field enable_serverless_compute to true.
+        enable_serverless_compute = True
+        if type == "warehouse":
+            # default to serverless
+            if "warehouse" not in config or config["warehouse"] == "serverless": 
+                warehouse_type = "PRO"
+                enable_serverless_compute = True
+            elif config["warehouse"] == "pro":
+                warehouse_type = "PRO"
+                enable_serverless_compute = False
+            elif config["warehouse"] == "classic":
+                warehouse_type = "CLASSIC"
+                enable_serverless_compute = False 
+            else:
+                assert config["warehouse"] == "classic" or config["warehouse"] == "pro" or config["warehouse"] == "serverless", (
+                "Invalid warehouse compute 'type' provided. "
+                "Allowed types include: ['classic', 'pro', 'serverless']."
+            )
+
 
         # Determine the Spark runtime to install
         latest_runtimes = self._get_spark_runtimes()
@@ -189,10 +240,22 @@ class SQLWarehouseUtils:
                 },
                 "enable_photon": enable_photon,
                 "channel": {"name": "CHANNEL_NAME_CURRENT"},
+                # specify the warehouse type
+                "warehouse_type": warehouse_type,
+                "enable_serverless_compute": enable_serverless_compute
             },
         )
+        
         warehouse_id = response.json().get("id")
+
+        # Wait for warehouse to start, for pro and classic
+        if config["warehouse"] and config["warehouse"] != "serverless": 
+            while self._get_warehouse_state(warehouse_id) != "RUNNING":
+                print(f"Waiting for warehouse {warehouse_id} to run (40s)...")
+                time.sleep(40)
+        
         if not warehouse_id:
             raise Exception(f"did not get back warehouse_id ({response.json()})")
-        self.http_path = f"/sql/1.0/warehouses/{warehouse_id}"
+        
+        # self.http_path = f"/sql/1.0/warehouses/{warehouse_id}"
         return warehouse_id
