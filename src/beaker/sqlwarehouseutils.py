@@ -119,7 +119,7 @@ class SQLWarehouseUtils:
 
     def _start_warehouse(self, warehouse_id):
         """ Check for warehouse state"""
-        warehouse_state = _get_warehouse_state(warehouse_id)
+        warehouse_state = self._get_warehouse_state(warehouse_id)
         if warehouse_state != "RUNNING":
             print("Warehouse in state: ", warehouse_state)
             print(f"Starting warehouse {warehouse_id}...")
