@@ -61,10 +61,13 @@ benchmark.setCatalog(catalog="hive_metastore")
 benchmark.preWarmTables(tables=["table_1", "table_2", "table_3"])
 ```
 
-You may even choose to provision a new SQL warehouse.
+You may even choose to provision a new SQL warehouse. 
+You can choose the warehouse type (pro, classic, serverless) by specify the warehouse parameter. Default to serverless if "warehouse" param is not specified
+
 ```python
 new_warehouse_config = {
     "type": "warehouse",
+    "warehouse": "serverless", # -> specify the warehouse type (pro, classic, serverless). Default to serverless
     "runtime": "latest",
     "size": "Large",
     "min_num_clusters": 1,
