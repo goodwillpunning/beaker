@@ -53,8 +53,7 @@ class SQLWarehouseUtils:
             results_caching = "false"
 
         assert self.http_path, ("Warehouse doesn't exist to create connection")
-
-        ## Create connection after warehouse is started
+  
         connection = sql.connect(
             server_hostname=self.hostname,
             http_path=self.http_path,
@@ -228,6 +227,5 @@ class SQLWarehouseUtils:
         
         if not warehouse_id:
             raise Exception(f"did not get back warehouse_id ({response.json()})")
-        
-        # self.http_path = f"/sql/1.0/warehouses/{warehouse_id}"
+
         return warehouse_id
