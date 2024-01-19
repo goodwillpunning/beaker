@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 
 from beaker.sqlwarehouseutils import SQLWarehouseUtils
+from beaker.spark_fixture import get_spark_session, metrics_to_df_view
 
 # Create thread-local storage
 thread_local = threading.local()
@@ -19,7 +20,7 @@ class Benchmark:
 
     def __init__(
         self,
-        name="Beaker Benchmark Test",
+        name="beaker_benchmark",
         query=None,
         query_file=None,
         query_file_dir=None,
@@ -61,6 +62,8 @@ class Benchmark:
             self.schema,
             self.results_cache_enabled,
         )
+        # establish connection on the existing warehouse
+        sql_warehouse.setConnection()
         logging.info(f"Returning new sqlwarehouseutils: {sql_warehouse}")
         return sql_warehouse
 
@@ -86,7 +89,11 @@ class Benchmark:
         warehouse_utils = SQLWarehouseUtils()
         warehouse_utils.setToken(token=self.token)
         warehouse_utils.setHostname(hostname=self.hostname)
-        return warehouse_utils.launch_warehouse(self.new_warehouse_config)
+        warehouse_utils.setCatalog(self.catalog)
+        warehouse_utils.setSchema(self.schema)
+        warehouse_utils.setEnableResultCaching(self.results_cache_enabled)
+        warehouse_id = warehouse_utils.launch_warehouse(self.new_warehouse_config)
+        return warehouse_id
 
     def _clean_name(self, name):
         """Replaces spaces with underscores"""
@@ -154,7 +161,7 @@ class Benchmark:
 
     def _validateQueryFileDir(self, query_file_dir):
         """Validates the query file directory."""
-        return True
+        return os.path.isdir(query_file_dir)
 
     def setQueryFileDir(self, query_file_dir):
         """Sets the directory to load query files."""
@@ -169,6 +176,7 @@ class Benchmark:
 
         sql_warehouse = self._get_thread_local_connection()
 
+        # TODO: instead of using perf counter, we might want to get the query duration from /api/2.0/sql/history/queries API
         start_time = time.perf_counter()
         sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
@@ -233,6 +241,7 @@ class Benchmark:
         return queries
 
     def _get_queries_from_file(self, query_file):
+        print("Get queries from file:", query_file)
         if self.query_file_format == self.QUERY_FILE_FORMAT_SEMICOLON_DELIM:
             return self._get_queries_from_file_format_semi(query_file)
         elif self.query_file_format == self.QUERY_FILE_FORMAT_ORIGINAL:
@@ -245,14 +254,16 @@ class Benchmark:
         metrics = self._execute_queries(queries, self.concurrency)
         return metrics
 
-    def _get_query_filenames_from_dir(self, queries_dir):
-        return [os.path.join(queries_dir, f) for f in os.listdir(queries_dir)]
+    def _get_query_filenames_from_dir(self, query_file_dir):
+        return [os.path.join(query_file_dir, f) for f in os.listdir(query_file_dir)]
 
     def _get_queries_from_dir(self, query_dir):
+        print("Get queries from dir:", query_dir)
         query_files = self._get_query_filenames_from_dir(query_dir)
         queries = []
         for qf in query_files:
-            queries.append((open(qf).read(), qf.split("/")[-1]))
+            qs = self._get_queries_from_file(qf)
+            queries += qs
         return queries
 
     def _execute_queries_from_dir(self, query_dir):
@@ -277,7 +288,10 @@ class Benchmark:
 
     def execute(self):
         """Executes the benchmark test."""
-        logging.info("Executing benchmark test.")
+        logging.info("Executing benchmark test")
+        logging.info("Set default catalog and schema")
+        self._set_default_catalog()
+        self._set_default_schema()
         metrics = None
         if self.query_file_dir is not None:
             logging.info("Loading query files from directory.")
@@ -290,6 +304,8 @@ class Benchmark:
             metrics = self._execute_queries_from_query(self.query)
         else:
             raise ValueError("No query specified.")
+        metrics_df = metrics_to_df_view(metrics, f"{self.name}_vw")
+        print(f"Query the metrics view at: ", f"{self.name}_vw")
         return metrics
 
     def preWarmTables(self, tables):
@@ -301,7 +317,8 @@ class Benchmark:
         assert (
             self.catalog is not None
         ), "No catalog provided. You can add a catalog by calling `.setCatalog()`."
-        self._execute_single_query(f"USE CATALOG {self.catalog}")
+        self._set_default_catalog()
+        self._set_default_schema()
         for table in tables:
             logging.info(f"Pre-warming table: {table}")
             query = f"SELECT * FROM {table}"
