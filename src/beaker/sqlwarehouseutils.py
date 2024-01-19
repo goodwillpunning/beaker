@@ -3,6 +3,7 @@ import datetime
 from databricks import sql
 import logging
 import time
+from databricks.sdk import WorkspaceClient
 
 class SQLWarehouseUtils:
     _LATEST_RUNTIME = "13.3.x-scala2.12"
@@ -109,23 +110,6 @@ class SQLWarehouseUtils:
         )
         result = list(map(lambda v: v["key"], response.json()["versions"]))
         return result
-    
-    def _get_warehouse_state(self, warehouse_id):
-        """ Check for warehouse state"""
-        response = requests.get(f"https://{self.hostname}/api/2.0/sql/warehouses/{warehouse_id}", 
-                         headers={"Authorization": f"Bearer {self.access_token}"})
-        warehouse_state = response.json()["state"]
-        return warehouse_state
-
-    def _start_warehouse(self, warehouse_id):
-        """ Check for warehouse state"""
-        warehouse_state = self._get_warehouse_state(warehouse_id)
-        if warehouse_state != "RUNNING":
-            print("Warehouse in state: ", warehouse_state)
-            print(f"Starting warehouse {warehouse_id}...")
-            response = requests.post(f"https://{self.hostname}/api/2.0/sql/warehouses/{warehouse_id}/start", 
-                            headers={"Authorization": f"Bearer {self.access_token}"})
-            assert response.status_code == 200, (f"Warehouse {warehouse_id} failed to start")
 
     def launch_warehouse(self, config):
         """Creates a new SQL warehouse based upon a config."""
@@ -238,11 +222,9 @@ class SQLWarehouseUtils:
         
         warehouse_id = response.json().get("id")
 
-        # Wait for warehouse to start, for pro and classic
-        if config["warehouse"] and config["warehouse"] != "serverless": 
-            while self._get_warehouse_state(warehouse_id) != "RUNNING":
-                print(f"Waiting for warehouse {warehouse_id} to run (40s)...")
-                time.sleep(40)
+        warehouse_start_time = time.time()
+        WorkspaceClient().warehouses.start_and_wait(warehouse_id)
+        print(f"{int(time.time() - warehouse_start_time)}s Warehouse Startup Time")
         
         if not warehouse_id:
             raise Exception(f"did not get back warehouse_id ({response.json()})")
