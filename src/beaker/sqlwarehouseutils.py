@@ -52,16 +52,6 @@ class SQLWarehouseUtils:
             results_caching = "false"
 
         assert self.http_path, ("Warehouse doesn't exist to create connection")
-        # # If the warehouse already exists
-        # ## Start the warehouse
-        # warehouse_id = self.http_path.split("/")[-1]
-        # self._start_warehouse(warehouse_id)
-        # # Give a few seconds for serverless warehouse to start
-        # time.sleep(5)
-        # # Wait for warehouse to start, for pro and classic
-        # while self._get_warehouse_state(warehouse_id) != "RUNNING":
-        #     print(f"Waiting for warehouse {warehouse_id} to start (40s)...")
-        #     time.sleep(40)
 
         ## Create connection after warehouse is started
         connection = sql.connect(
