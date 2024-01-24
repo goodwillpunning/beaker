@@ -5,9 +5,10 @@ import requests
 import logging
 from concurrent.futures import ThreadPoolExecutor
 import threading
+import datetime
 
 from beaker.sqlwarehouseutils import SQLWarehouseUtils
-from beaker.spark_fixture import get_spark_session, metrics_to_df_view
+from beaker.spark_fixture import get_spark_session, metrics_to_df_view, get_query_history
 
 # Create thread-local storage
 thread_local = threading.local()
@@ -176,11 +177,12 @@ class Benchmark:
 
         sql_warehouse = self._get_thread_local_connection()
 
-        # TODO: instead of using perf counter, we might want to get the query duration from /api/2.0/sql/history/queries API
+        ## Instead of using perf counter, we want to get the query duration from /api/2.0/sql/history/queries API
         start_time = time.perf_counter()
-        sql_warehouse.execute_query(query)
+        result = sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
+
         metrics = {
             "id": id,
             "hostname": self.hostname,
@@ -190,6 +192,7 @@ class Benchmark:
             "elapsed_time": elapsed_time,
         }
         return metrics
+
 
     def _set_default_catalog(self):
         if self.catalog:
@@ -252,7 +255,7 @@ class Benchmark:
     def _execute_queries_from_file(self, query_file):
         queries = self._get_queries_from_file(query_file)
         metrics = self._execute_queries(queries, self.concurrency)
-        return metrics
+        return queries
 
     def _get_query_filenames_from_dir(self, query_file_dir):
         return [os.path.join(query_file_dir, f) for f in os.listdir(query_file_dir)]
@@ -269,11 +272,11 @@ class Benchmark:
     def _execute_queries_from_dir(self, query_dir):
         queries = self._get_queries_from_dir(query_dir)
         metrics = self._execute_queries(queries, self.concurrency)
-        return metrics
+        return queries
 
     def _execute_queries_from_query(self, query):
         metrics = self._execute_queries([(query, "query")], 1)
-        return metrics
+        return [(query, "query")]
 
     def _execute_queries(self, queries, num_threads):
         # Duplicate queries `query_repeat_count` number of times
@@ -284,7 +287,7 @@ class Benchmark:
             metrics_list = list(
                 executor.map(lambda x: self._execute_single_query(*x), queries)
             )
-        return metrics_list
+        return queries
 
     def execute(self):
         """Executes the benchmark test."""
@@ -292,21 +295,40 @@ class Benchmark:
         logging.info("Set default catalog and schema")
         self._set_default_catalog()
         self._set_default_schema()
-        metrics = None
+
+        start_ts_ms = int(time.time() * 1000)
+        start_dt = datetime.datetime.fromtimestamp(start_ts_ms/1000).strftime('%Y-%m-%d %H:%M:%S')
+
         if self.query_file_dir is not None:
             logging.info("Loading query files from directory.")
-            metrics = self._execute_queries_from_dir(self.query_file_dir)
+            queries = self._execute_queries_from_dir(self.query_file_dir)
         elif self.query_file is not None:
             logging.info("Loading query file.")
-            metrics = self._execute_queries_from_file(self.query_file)
+            queries = self._execute_queries_from_file(self.query_file)
         elif self.query is not None:
             logging.info("Executing single query.")
-            metrics = self._execute_queries_from_query(self.query)
+            queries = self._execute_queries_from_query(self.query)
         else:
             raise ValueError("No query specified.")
-        metrics_df = metrics_to_df_view(metrics, f"{self.name}_vw")
-        print(f"Query the metrics view at: ", f"{self.name}_vw")
-        return metrics
+        queries_df = spark.createDataFrame(queries, ["query", "id"])
+        history_df = get_query_history(self.hostname, self.token, self.http_path[17:])
+
+        # inner join history_df with query_df
+        # select warehouse_id, id, query_text, duration_sec, query_execution_time_sec,
+        # planning_time_sec, photon_total_time_sec
+        metrics_df = (history_df.join(queries_df, history_df.query_text == queries_df.query, "inner")
+                .select(queries_df["id"].alias("id"),
+                    history_df["warehouse_id"].alias("warehouse_id"), 
+                    queries_df["query"].alias("query_text"), 
+                    (history_df.duration / 1000).alias("duration_sec"), 
+                    (history_df.metrics.execution_time_ms / 1000).alias("query_execution_time_sec"),
+                    (history_df.metrics.planning_time_ms / 1000).alias("planning_time_sec"),
+                    (history_df.metrics.photon_total_time_ms / 1000).alias("photon_total_time_sec"))
+                )
+    
+        df_view = metrics_to_df_view(metrics_df, self.name + "_vw")
+        print(f"Query the metrics view starting {start_dt} UTC at: ", self.name + "_view")
+        return metrics_df
 
     def preWarmTables(self, tables):
         """Delta caches the table before running a benchmark test."""
