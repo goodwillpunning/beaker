@@ -2,6 +2,8 @@ import requests
 import datetime
 from databricks import sql
 import logging
+import time
+from databricks.sdk import WorkspaceClient
 
 class SQLWarehouseUtils:
     _LATEST_RUNTIME = "13.3.x-scala2.12"
@@ -50,7 +52,8 @@ class SQLWarehouseUtils:
         else:
             results_caching = "false"
 
-        # If the warehouse already exists:
+        assert self.http_path, ("Warehouse doesn't exist to create connection")
+  
         connection = sql.connect(
             server_hostname=self.hostname,
             http_path=self.http_path,
@@ -135,6 +138,27 @@ class SQLWarehouseUtils:
                 "Allowed types include: ['warehouse', 'cluster']."
             )
 
+        # Determine the Warehouse type (classic, pro, serverless) to launch
+        # warehouse_type: PRO or CLASSIC. If you want to use serverless compute, you must set to PRO and also set the field enable_serverless_compute to true.
+        enable_serverless_compute = True
+        if type == "warehouse":
+            # default to serverless
+            if "warehouse" not in config or config["warehouse"] == "serverless": 
+                warehouse_type = "PRO"
+                enable_serverless_compute = True
+            elif config["warehouse"] == "pro":
+                warehouse_type = "PRO"
+                enable_serverless_compute = False
+            elif config["warehouse"] == "classic":
+                warehouse_type = "CLASSIC"
+                enable_serverless_compute = False 
+            else:
+                assert config["warehouse"] == "classic" or config["warehouse"] == "pro" or config["warehouse"] == "serverless", (
+                "Invalid warehouse compute 'type' provided. "
+                "Allowed types include: ['classic', 'pro', 'serverless']."
+            )
+
+
         # Determine the Spark runtime to install
         latest_runtimes = self._get_spark_runtimes()
         if "runtime" not in config:
@@ -189,10 +213,19 @@ class SQLWarehouseUtils:
                 },
                 "enable_photon": enable_photon,
                 "channel": {"name": "CHANNEL_NAME_CURRENT"},
+                # specify the warehouse type
+                "warehouse_type": warehouse_type,
+                "enable_serverless_compute": enable_serverless_compute
             },
         )
+        
         warehouse_id = response.json().get("id")
+
+        warehouse_start_time = time.time()
+        WorkspaceClient().warehouses.start_and_wait(warehouse_id)
+        print(f"{int(time.time() - warehouse_start_time)}s Warehouse Startup Time")
+        
         if not warehouse_id:
             raise Exception(f"did not get back warehouse_id ({response.json()})")
-        self.http_path = f"/sql/1.0/warehouses/{warehouse_id}"
+
         return warehouse_id
