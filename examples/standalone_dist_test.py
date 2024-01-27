@@ -29,6 +29,6 @@ bm.setWarehouseToken(token=access_token)
 bm.setQuery("select now(), 'foo';")
 bm.setQueryRepeatCount(100)
 
-metrics = bm.execute()
-#print(metrics)
+beaker_metrics, history_metrics = bm.execute()
+#print(history_metrics)
 

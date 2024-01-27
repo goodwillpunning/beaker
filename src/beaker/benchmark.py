@@ -1,3 +1,4 @@
+from databricks.sdk.runtime import *
 import os
 import time
 import re
@@ -5,6 +6,10 @@ import requests
 import logging
 from concurrent.futures import ThreadPoolExecutor
 import threading
+import datetime
+import json
+from pyspark.sql.types import StructType, StructField, StringType, LongType
+from pyspark.sql.functions import col
 
 from beaker.sqlwarehouseutils import SQLWarehouseUtils
 from beaker.spark_fixture import get_spark_session, metrics_to_df_view
@@ -64,7 +69,7 @@ class Benchmark:
         )
         # establish connection on the existing warehouse
         sql_warehouse.setConnection()
-        logging.info(f"Returning new sqlwarehouseutils: {sql_warehouse}")
+        self.warehouse_id = self.http_path.split("/")[-1]
         return sql_warehouse
 
     def _get_thread_local_connection(self):
@@ -176,11 +181,12 @@ class Benchmark:
 
         sql_warehouse = self._get_thread_local_connection()
 
-        # TODO: instead of using perf counter, we might want to get the query duration from /api/2.0/sql/history/queries API
+        ## Instead of using perf counter, we want to get the query duration from /api/2.0/sql/history/queries API
         start_time = time.perf_counter()
-        sql_warehouse.execute_query(query)
+        result = sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
+
         metrics = {
             "id": id,
             "hostname": self.hostname,
@@ -190,6 +196,7 @@ class Benchmark:
             "elapsed_time": elapsed_time,
         }
         return metrics
+
 
     def _set_default_catalog(self):
         if self.catalog:
@@ -241,7 +248,6 @@ class Benchmark:
         return queries
 
     def _get_queries_from_file(self, query_file):
-        print("Get queries from file:", query_file)
         if self.query_file_format == self.QUERY_FILE_FORMAT_SEMICOLON_DELIM:
             return self._get_queries_from_file_format_semi(query_file)
         elif self.query_file_format == self.QUERY_FILE_FORMAT_ORIGINAL:
@@ -258,13 +264,12 @@ class Benchmark:
         return [os.path.join(query_file_dir, f) for f in os.listdir(query_file_dir)]
 
     def _get_queries_from_dir(self, query_dir):
-        print("Get queries from dir:", query_dir)
         query_files = self._get_query_filenames_from_dir(query_dir)
         queries = []
         for qf in query_files:
             qs = self._get_queries_from_file(qf)
             queries += qs
-        return queries
+        return metrics
 
     def _execute_queries_from_dir(self, query_dir):
         queries = self._get_queries_from_dir(query_dir)
@@ -285,6 +290,60 @@ class Benchmark:
                 executor.map(lambda x: self._execute_single_query(*x), queries)
             )
         return metrics_list
+    
+    def get_query_history(self, warehouse_id, start_ts_ms, end_ts_ms):
+        """
+        Retrieves the Query History for a given workspace and Data Warehouse.
+
+        Parameters:
+        -----------
+        warehouse_id (str): The ID of the Data Warehouse for which to retrieve the Query History.
+        start_ts_ms (int): The Unix timestamp (milliseconds) value representing the start of the query history.
+        end_ts_ms (int): The Unix timestamp (milliseconds) value representing the end of the query history.
+
+        Returns:
+        --------
+        history_df : dataframe of the query history
+        """
+        user_id = self._get_user_id()
+        logging.info("Extracting Query History")
+        ## Put together request 
+        request_string = {
+            "filter_by": {
+                "query_start_time_range": {
+                    "end_time_ms": end_ts_ms,
+                    "start_time_ms": start_ts_ms
+            },
+            "warehouse_ids": warehouse_id,
+            "user_ids": [user_id],
+            },
+            "include_metrics": "true",
+            "max_results": "1000"
+        }
+
+        # ## Convert dict to json
+        v = json.dumps(request_string)
+
+        uri = f"https://{self.hostname}/api/2.0/sql/history/queries"
+        headers_auth = {"Authorization":f"Bearer {self.token}"}
+
+        #### Get Query History Results from API
+        response = requests.get(uri, data=v, headers=headers_auth)
+        logging.info("Await completion of all queries...")
+        while True:
+            results = response.json()['res']
+            if all([item['is_final'] for item in results]):
+                break
+            time.sleep(5)
+            response = requests.get(uri, data=v, headers=headers_auth)
+
+        if (response.status_code == 200) and ("res" in response.json()):
+            logging.info("Query history extracted successfully")
+            end_res = response.json()['res']
+            return end_res
+        else:
+            raise Exception("Failed to retrieve successful query history")
+
 
     def execute(self):
         """Executes the benchmark test."""
@@ -292,7 +351,10 @@ class Benchmark:
         logging.info("Set default catalog and schema")
         self._set_default_catalog()
         self._set_default_schema()
-        metrics = None
+
+        start_ts_ms = int(time.time() * 1000)
+        start_dt = datetime.datetime.fromtimestamp(start_ts_ms/1000).strftime('%Y-%m-%d %H:%M:%S')
+
         if self.query_file_dir is not None:
             logging.info("Loading query files from directory.")
             metrics = self._execute_queries_from_dir(self.query_file_dir)
@@ -304,9 +366,12 @@ class Benchmark:
             metrics = self._execute_queries_from_query(self.query)
         else:
             raise ValueError("No query specified.")
-        metrics_df = metrics_to_df_view(metrics, f"{self.name}_vw")
-        print(f"Query the metrics view at: ", f"{self.name}_vw")
-        return metrics
+
+        end_ts_ms = int(time.time() * 1000)
+        print("Monitor warehouse at: ", f"https://{self.hostname}/sql/warehouses/{self.warehouse_id}/monitoring")
+        logging.info("Getting Query Metrics")
+        history_metrics = self.get_query_history(self.warehouse_id, start_ts_ms, end_ts_ms)
+        return metrics, history_metrics
 
     def preWarmTables(self, tables):
         """Delta caches the table before running a benchmark test."""

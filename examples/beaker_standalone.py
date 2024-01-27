@@ -30,18 +30,18 @@ SELECT count(*)
 bm.setQuery(query=query_str)
 bm.setCatalog(catalog="hive_metastore")
 
-metrics = bm.execute()
-print(metrics)
+beaker_metrics, history_metrics = bm.execute()
+print(history_metrics)
 
 
 print("---- Specify a single query file ------")
 bm.query_file_format = "semicolon-delimited"
 bm.setQueryFile("queries/q1.sql")
-metrics = bm.execute()
-print(metrics)
+beaker_metrics, history_metrics = bm.execute()
+print(history_metrics)
 
 
 print("---- Specify a query directory ------")
 bm.setQueryFileDir("queries")
-metrics = bm.execute()
-print(metrics)
+beaker_metrics, history_metrics = bm.execute()
+print(history_metrics)
