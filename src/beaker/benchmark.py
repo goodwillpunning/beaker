@@ -184,12 +184,11 @@ class Benchmark:
         result = sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
-        warehouse_type = "serverless" if "warehouse" not in self.new_warehouse_config else self.new_warehouse_config["warehouse"]  
+ 
         metrics = {
             "id": id,
             "hostname": self.hostname,
             "http_path": self.http_path,
-            "warehouse_type": warehouse_type,
             "concurrency": self.concurrency,
             "query": query,
             "elapsed_time": elapsed_time,
