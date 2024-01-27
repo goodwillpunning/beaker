@@ -78,7 +78,9 @@ class SQLWarehouseUtils:
 
     def execute_query(self, query_str):
         with self.connection.cursor() as cursor:
-            result = cursor.execute(query_str)
+            cursor.execute(query_str)
+            result = cursor.fetchall()
+            return result
 
     def get_rows(self, query_str):
         with self.connection.cursor() as cursor:
