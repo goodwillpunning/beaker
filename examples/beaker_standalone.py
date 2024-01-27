@@ -4,17 +4,19 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+from dotenv import load_dotenv
+load_dotenv()
+
 sys.path.append("../src")
 
-from beaker import benchmark
-
-bm = benchmark.Benchmark()
+# from beaker import benchmark
 
 hostname = os.getenv("DATABRICKS_HOST")
 http_path = os.getenv("DATABRICKS_HTTP_PATH")
 # Don't put tokens in plaintext in code
 access_token = os.getenv("DATABRICKS_ACCESS_TOKEN")
 
+bm = benchmark.Benchmark()
 bm.setName(name="simple_test")
 bm.setHostname(hostname=hostname)
 bm.setWarehouse(http_path=http_path)

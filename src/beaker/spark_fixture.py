@@ -26,7 +26,7 @@ def metrics_to_df_view(beaker_metrics, history_metrics, view_name):
     history_df = spark.createDataFrame(history_metrics)
     history_metrics_df = (
         history_df.alias("v1") 
-            .join(metrics_df.select("id", "query").distinct().alias("v2"), col("v1.query_text") == col("v2.query"), "inner") 
+            .join(metrics_df.select("id", "query", "warehouse_type").distinct().alias("v2"), col("v1.query_text") == col("v2.query"), "inner") 
             .select("v1.warehouse_id", "v2.id", "v1.query_text", 
                 (col("v1.duration") / 1000).alias("duration_sec"), 
                 (col("metrics.execution_time_ms") / 1000).alias("query_execution_time_sec"), 

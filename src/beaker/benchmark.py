@@ -8,8 +8,6 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 import datetime
 import json
-from pyspark.sql.types import StructType, StructField, StringType, LongType
-from pyspark.sql.functions import col
 
 from beaker.sqlwarehouseutils import SQLWarehouseUtils
 from beaker.spark_fixture import get_spark_session, metrics_to_df_view
@@ -186,11 +184,12 @@ class Benchmark:
         result = sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
-
+        warehouse_type = "serverless" if "warehouse" not in self.new_warehouse_config else self.new_warehouse_config["warehouse"]  
         metrics = {
             "id": id,
             "hostname": self.hostname,
             "http_path": self.http_path,
+            "warehouse_type": warehouse_type,
             "concurrency": self.concurrency,
             "query": query,
             "elapsed_time": elapsed_time,
@@ -269,7 +268,7 @@ class Benchmark:
         for qf in query_files:
             qs = self._get_queries_from_file(qf)
             queries += qs
-        return metrics
+        return queries
 
     def _execute_queries_from_dir(self, query_dir):
         queries = self._get_queries_from_dir(query_dir)
