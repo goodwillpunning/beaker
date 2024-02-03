@@ -227,7 +227,7 @@ class SQLWarehouseUtils:
 
         WorkspaceClient(host=f"https://{self.hostname}", token=self.access_token).warehouses.start_and_wait(warehouse_id)
 
-        print(f"{int(time.time() - warehouse_start_time)}s Warehouse Startup Time")
+        print(f"{int(time.time() - warehouse_start_time)}s Warehouse {warehouse_id} Startup Time")
         
         if not warehouse_id:
             raise Exception(f"did not get back warehouse_id ({response.json()})")

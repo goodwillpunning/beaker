@@ -67,7 +67,7 @@ class Benchmark:
         )
         # establish connection on the existing warehouse
         sql_warehouse.setConnection()
-        self.warehouse_id = self.http_path.split("/")[-1]
+
         return sql_warehouse
 
     def _get_thread_local_connection(self):
@@ -111,14 +111,18 @@ class Benchmark:
         """Launches a new cluster/warehouse from a JSON config."""
         self.new_warehouse_config = config
         logging.info(f"Creating new warehouse with config: {config}")
-        warehouse_id = self._launch_new_warehouse()
-        logging.info(f"The warehouse Id is: {warehouse_id}")
-        self.http_path = f"/sql/1.0/warehouses/{warehouse_id}"
+        self.warehouse_id = self._launch_new_warehouse()
+        self.warehouse_name = self._get_warehouse_info()
+        logging.info(f"The warehouse Id is: {self.warehouse_id}")
+        self.http_path = f"/sql/1.0/warehouses/{self.warehouse_id}"
 
     def setWarehouse(self, http_path):
         """Sets the SQL Warehouse http path to use for the benchmark."""
         assert self._validate_warehouse(id), "Invalid HTTP path for SQL Warehouse."
         self.http_path = http_path
+        if self.http_path:
+            self.warehouse_id = self.http_path.split("/")[-1]
+            self.warehouse_name = self._get_warehouse_info()
 
     def setConcurrency(self, concurrency):
         """Sets the query execution parallelism."""
@@ -189,6 +193,7 @@ class Benchmark:
             "id": id,
             "hostname": self.hostname,
             "http_path": self.http_path,
+            "warehouse_name": self.warehouse_name,
             "concurrency": self.concurrency,
             "query": query,
             "elapsed_time": elapsed_time,
@@ -342,6 +347,14 @@ class Benchmark:
         else:
             raise Exception("Failed to retrieve successful query history")
 
+    def _get_warehouse_info(self):
+        """Gets the warehouse info."""
+        response = requests.get(
+            f"https://{self.hostname}/api/2.0/sql/warehouses/{self.warehouse_id}",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        warehouse_name = response.json()["name"]
+        return warehouse_name
 
     def execute(self):
         """Executes the benchmark test."""
@@ -350,6 +363,8 @@ class Benchmark:
         self._set_default_catalog()
         self._set_default_schema()
 
+        print(f"Monitor warehouse `{self.warehouse_name}` at: ", f"https://{self.hostname}/sql/warehouses/{self.warehouse_id}/monitoring")
+        
         start_ts_ms = int(time.time() * 1000)
         start_dt = datetime.datetime.fromtimestamp(start_ts_ms/1000).strftime('%Y-%m-%d %H:%M:%S')
 
@@ -366,7 +381,8 @@ class Benchmark:
             raise ValueError("No query specified.")
 
         end_ts_ms = int(time.time() * 1000)
-        print("Monitor warehouse at: ", f"https://{self.hostname}/sql/warehouses/{self.warehouse_id}/monitoring")
+
+
         logging.info("Getting Query Metrics")
         history_metrics = self.get_query_history(self.warehouse_id, start_ts_ms, end_ts_ms)
         return metrics, history_metrics

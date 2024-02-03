@@ -26,12 +26,13 @@ def metrics_to_df_view(beaker_metrics, history_metrics, view_name):
     history_df = spark.createDataFrame(history_metrics)
     history_metrics_df = (
         history_df.alias("v1") 
-            .join(metrics_df.select("id", "query").distinct().alias("v2"), col("v1.query_text") == col("v2.query"), "inner") 
-            .select("v1.warehouse_id", "v2.id", "v1.query_text", 
+            .join(metrics_df.select("id", "query", "warehouse_name").distinct().alias("v2"), col("v1.query_text") == col("v2.query"), "inner") 
+            .select("v2.warehouse_name", "v1.warehouse_id", "v2.id", "v1.query_text", 
                 (col("v1.duration") / 1000).alias("duration_sec"), 
                 (col("metrics.execution_time_ms") / 1000).alias("query_execution_time_sec"), 
                 (col("metrics.planning_time_ms") / 1000).alias("planning_time_sec"), 
                 (col("metrics.photon_total_time_ms") / 1000).alias("photon_total_time_sec"))
         )
     history_metrics_df.createOrReplaceTempView(view_name)
+    print(f"Query metrics at: {view_name}")
     return history_metrics_df
