@@ -1,4 +1,3 @@
-from databricks.sdk.runtime import *
 import os
 import time
 import re
@@ -8,6 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 import datetime
 import json
+import pandas as pd
+from pandas import json_normalize
 
 from beaker.sqlwarehouseutils import SQLWarehouseUtils
 from beaker.spark_fixture import get_spark_session, metrics_to_df_view
@@ -179,7 +180,6 @@ class Benchmark:
 
     def _execute_single_query(self, query, id=None):
         query = query.strip()
-        logging.info(query)
 
         sql_warehouse = self._get_thread_local_connection()
 
@@ -306,7 +306,7 @@ class Benchmark:
 
         Returns:
         --------
-        history_df : dataframe of the query history
+        end_res : query history json
         """
         user_id = self._get_user_id()
         logging.info("Extracting Query History")
@@ -337,7 +337,7 @@ class Benchmark:
             results = response.json()['res']
             if all([item['is_final'] for item in results]):
                 break
-            time.sleep(5)
+            time.sleep(10)
             response = requests.get(uri, data=v, headers=headers_auth)
 
         if (response.status_code == 200) and ("res" in response.json()):
@@ -346,6 +346,16 @@ class Benchmark:
             return end_res
         else:
             raise Exception("Failed to retrieve successful query history")
+        
+    def clean_query_metrics(self, raw_metrics_pdf):
+        logging.info("Clean Query Metrics")
+        metrics_pdf = json_normalize(raw_metrics_pdf['metrics'].apply(str).apply(eval))
+        metrics_pdf["query_id"] = raw_metrics_pdf["query_id"]
+        metrics_pdf["query"] = raw_metrics_pdf["query"]
+        metrics_pdf["status"] = raw_metrics_pdf["status"]
+        metrics_pdf["warehouse_name"] = self.warehouse_name
+        metrics_pdf["id"] = raw_metrics_pdf["id"]
+        return metrics_pdf
 
     def _get_warehouse_info(self):
         """Gets the warehouse info."""
@@ -355,6 +365,7 @@ class Benchmark:
         )
         warehouse_name = response.json()["name"]
         return warehouse_name
+    
 
     def execute(self):
         """Executes the benchmark test."""
@@ -382,10 +393,13 @@ class Benchmark:
 
         end_ts_ms = int(time.time() * 1000)
 
-
         logging.info("Getting Query Metrics")
         history_metrics = self.get_query_history(self.warehouse_id, start_ts_ms, end_ts_ms)
-        return metrics, history_metrics
+        history_pdf = pd.DataFrame(history_metrics)
+        beaker_pdf = pd.DataFrame(metrics)
+        raw_metrics_pdf = history_pdf.merge(beaker_pdf[['query', 'id']].drop_duplicates(), left_on='query_text', right_on='query', how='inner')
+        metrics_pdf = self.clean_query_metrics(raw_metrics_pdf)
+        return metrics_pdf
 
     def preWarmTables(self, tables):
         """Delta caches the table before running a benchmark test."""
@@ -400,7 +414,7 @@ class Benchmark:
         self._set_default_schema()
         for table in tables:
             logging.info(f"Pre-warming table: {table}")
-            query = f"SELECT * FROM {table}"
+            query = f"CACHE SELECT * FROM {table}"
             self._execute_single_query(query)
 
     def __str__(self):

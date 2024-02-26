@@ -60,7 +60,7 @@ pat = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken
 # pat = dbutils.secrets.get(scope="your-scope", key="your-token")
 
 # warehouse http path example, replace with your own
-http_path = "/sql/1.0/warehouses/7f5789ee19b3b19c"
+http_path = "/sql/1.0/warehouses/475b94ddc7cd5211"
 
 # COMMAND ----------
 
@@ -68,9 +68,9 @@ http_path = "/sql/1.0/warehouses/7f5789ee19b3b19c"
 # Use the builder pattern to add parameters for connecting to the warehouse
 bm.setName(name="simple_test")
 bm.setHostname(hostname=hostname)
+bm.setWarehouseToken(token=pat)
 bm.setWarehouse(http_path=http_path)
 bm.setConcurrency(concurrency=1)
-bm.setWarehouseToken(token=pat)
 
 # Define the query to execute and target Catalog
 query_str = """
@@ -84,7 +84,7 @@ bm.setCatalog(catalog="hive_metastore")
 # COMMAND ----------
 
 # Run the benchmark!
-beaker_metrics, history_metrics = bm.execute()
+metrics_pdf = bm.execute()
 
 # COMMAND ----------
 
@@ -93,7 +93,7 @@ beaker_metrics, history_metrics = bm.execute()
 
 # COMMAND ----------
 
-df_simple_test = spark_fixture.metrics_to_df_view(beaker_metrics, history_metrics, "simple_test_vw")
+df_simple_test = spark_fixture.metrics_to_df_view(metrics_pdf, "simple_test_vw")
 df_simple_test.display()
 
 # COMMAND ----------
@@ -146,8 +146,8 @@ bm.setWarehouseConfig(new_warehouse_config)
 # benchmark.preWarmTables(tables=["table_a", "table_b", "table_c"])
 
 # Run the benchmark!
-beaker_metrics, history_metrics = bm.execute()
-print(history_metrics)
+metrics_pdf = bm.execute()
+display(metrics_pdf)
 
 # COMMAND ----------
 
@@ -203,8 +203,9 @@ bm.setCatalog(catalog="hive_metastore")
 
 # COMMAND ----------
 
-beaker_metrics, history_metrics = bm.execute()
-history_df = spark_fixture.metrics_to_df_view(beaker_metrics, history_metrics, view_name="metrics_view")
+metrics_pdf = bm.execute()
+# Create a spark dataframe of the returned metrics pandas dataframe
+metrics_df = spark_fixture.metrics_to_df_view(metrics_pdf, view_name="metrics_view")
 
 # COMMAND ----------
 

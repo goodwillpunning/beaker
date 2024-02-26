@@ -16,3 +16,5 @@ myvenv/
 
 */.env
 .env
+
+./examples/queries/test.py
