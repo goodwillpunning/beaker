@@ -225,30 +225,51 @@ class Benchmark:
         queries = [e for e in zip(file_queries, file_headers)]
         return queries
 
-    def _get_queries_from_file_format_semi(self, f, filter_comment_lines=False):
-        fc = None
-        queries = []
-        with open(f, "r") as of:
-            fc = of.read()
-        for idx, q in enumerate(fc.split(";")):
-            q = q.strip()
-            if not q:
-                continue
-            # Keep non-empty lines.
-            # Also keep or remove comments depending on the flag.
-            rq = [
-                l
-                for l in q.split("\n")
-                if l.strip() and not (filter_comment_lines and l.startswith("--"))
-            ]
-            if rq:
-                queries.append(
-                    (
-                        "\n".join(rq),
-                        f"query{idx}",
-                    )
-                )
+    # def _get_queries_from_file_format_semi(self, f, filter_comment_lines=False):
+    #     fc = None
+    #     queries = []
+    #     with open(f, "r") as of:
+    #         fc = of.read()
+    #     for idx, q in enumerate(fc.split(";")):
+    #         q = q.strip()
+    #         if not q:
+    #             continue
+    #         # Keep non-empty lines.
+    #         # Also keep or remove comments depending on the flag.
+    #         rq = [
+    #             l
+    #             for l in q.split("\n")
+    #             if l.strip() and not (filter_comment_lines and l.startswith("--"))
+    #         ]
+    #         if rq:
+    #             queries.append(
+    #                 (
+    #                     "\n".join(rq),
+    #                     f"query{idx}",
+    #                 )
+    #             )
+    #     return queries
+    
+    def _get_queries_from_file_format_semi(self, file_path):
+        """
+        Parses a SQL file and returns a list of tuples with the query_id and the query text.
+
+        Parameters:
+        file_path (str): The path to the SQL file.
+
+        Returns:
+        list: A list of tuples, where each tuple contains a query_id and a query text.
+        """
+        with open(file_path, 'r') as file:
+            content = file.read()
+
+        pattern = r'-- {"query_id":"(.*?)"}\n(.*?);'
+        matches = re.findall(pattern, content, re.DOTALL)
+
+        # Swap the order of elements in each tuple
+        queries = [(query, query_id) for query_id, query in matches]
         return queries
+
 
     def _get_queries_from_file(self, query_file):
         if self.query_file_format == self.QUERY_FILE_FORMAT_SEMICOLON_DELIM:
