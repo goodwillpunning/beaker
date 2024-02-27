@@ -9,7 +9,7 @@ load_dotenv()
 
 sys.path.append("../src")
 
-from beaker import benchmark
+from beaker import benchmark, sqlwarehouseutils
 
 hostname = os.getenv("DATABRICKS_HOST")
 http_path = os.getenv("DATABRICKS_HTTP_PATH")
@@ -61,8 +61,5 @@ metrics_pdf = bm.execute()
 print(metrics_pdf)
 
 
-print("---- Test prewarm table ------")
-bm.setCatalog(catalog_name)
-bm.setSchema(schema_name)
-tables = ["customer", "lineitem", "nation", "orders", "part", "partsupp", "region", "supplier"]
-bm.preWarmTables(tables=tables)
+print("---- Close connection ------")
+bm.sql_warehouse.close_connection()

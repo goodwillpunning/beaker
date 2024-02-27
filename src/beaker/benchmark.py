@@ -56,9 +56,10 @@ class Benchmark:
         if new_warehouse_config is not None:
             self.setWarehouseConfig(new_warehouse_config)
         self.query_file_format = query_file_format
+        self.sql_warehouse = None
 
     def _create_dbc(self):
-        sql_warehouse = SQLWarehouseUtils(
+        self.sql_warehouse = SQLWarehouseUtils(
             self.hostname,
             self.http_path,
             self.token,
@@ -67,9 +68,9 @@ class Benchmark:
             self.results_cache_enabled,
         )
         # establish connection on the existing warehouse
-        sql_warehouse.setConnection()
+        self.sql_warehouse.setConnection()
 
-        return sql_warehouse
+        return self.sql_warehouse
 
     def _get_thread_local_connection(self):
         if not hasattr(thread_local, "connection"):
@@ -181,11 +182,9 @@ class Benchmark:
     def _execute_single_query(self, query, id=None):
         query = query.strip()
 
-        sql_warehouse = self._get_thread_local_connection()
-
         ## Instead of using perf counter, we want to get the query duration from /api/2.0/sql/history/queries API
         start_time = time.perf_counter()
-        result = sql_warehouse.execute_query(query)
+        result = self.sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
  
@@ -392,9 +391,13 @@ class Benchmark:
         """Executes the benchmark test."""
         logging.info("Executing benchmark test")
         logging.info("Set default catalog and schema")
+        self.sql_warehouse = self._get_thread_local_connection()
+
+        print(self.sql_warehouse)
+
         self._set_default_catalog()
         self._set_default_schema()
-
+        
         print(f"Monitor warehouse `{self.warehouse_name}` at: ", f"https://{self.hostname}/sql/warehouses/{self.warehouse_id}/monitoring")
         
         start_ts_ms = int(time.time() * 1000)
@@ -420,6 +423,7 @@ class Benchmark:
         beaker_pdf = pd.DataFrame(metrics)
         raw_metrics_pdf = history_pdf.merge(beaker_pdf[['query', 'id']].drop_duplicates(), left_on='query_text', right_on='query', how='inner')
         metrics_pdf = self.clean_query_metrics(raw_metrics_pdf)
+
         return metrics_pdf
 
     def preWarmTables(self, tables):
@@ -431,12 +435,16 @@ class Benchmark:
         assert (
             self.catalog is not None
         ), "No catalog provided. You can add a catalog by calling `.setCatalog()`."
+        
+        self.sql_warehouse = self._get_thread_local_connection()
+        
         self._set_default_catalog()
         self._set_default_schema()
         for table in tables:
             logging.info(f"Pre-warming table: {table}")
             query = f"CACHE SELECT * FROM {table}"
             self._execute_single_query(query)
+
 
     def __str__(self):
         object_str = f"""
@@ -451,5 +459,6 @@ class Benchmark:
     query_repeat_count={self.query_repeat_count}
     hostname={self.hostname}
     warehouse_http_path={self.http_path}
+    sql_warehouse={self.sql_warehouse}
     """
         return object_str

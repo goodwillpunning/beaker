@@ -233,3 +233,16 @@ class SQLWarehouseUtils:
             raise Exception(f"did not get back warehouse_id ({response.json()})")
 
         return warehouse_id
+
+
+    def __str__(self):
+        object_str = f"""
+    SQL Warehouse Utils
+    ------------------------
+    hostname={self.hostname}
+    catalog={self.catalog}
+    schema={self.schema}
+    http_path={self.http_path}
+    enable_results_caching={self.enable_results_caching}
+    """
+        return object_str
