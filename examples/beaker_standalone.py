@@ -18,7 +18,6 @@ access_token = os.getenv("DATABRICKS_ACCESS_TOKEN")
 catalog_name = os.getenv("CATALOG")
 schema_name = os.getenv("SCHEMA")
 
-print(http_path)
 
 bm = benchmark.Benchmark()
 bm.setName(name="simple_test")
@@ -63,3 +62,5 @@ print(metrics_pdf)
 
 print("---- Close connection ------")
 bm.sql_warehouse.close_connection()
+# res = bm.stop_warehouse("c0688d9c9c6d1091")
+# print(res)

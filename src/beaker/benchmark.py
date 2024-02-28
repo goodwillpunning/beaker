@@ -85,9 +85,14 @@ class Benchmark:
         )
         return response.json()["id"]
 
+
     def _validate_warehouse(self, http_path):
         """Validates the SQL warehouse HTTP path."""
-        return True
+        pattern = r'^/sql/1\.0/warehouses/[a-f0-9]+$'
+        if re.match(pattern, http_path):
+            return True
+        else:
+            return False
 
     def _launch_new_warehouse(self):
         """Launches a new SQL Warehouse"""
@@ -115,16 +120,24 @@ class Benchmark:
         logging.info(f"Creating new warehouse with config: {config}")
         self.warehouse_id = self._launch_new_warehouse()
         self.warehouse_name = self._get_warehouse_info()
-        logging.info(f"The warehouse Id is: {self.warehouse_id}")
         self.http_path = f"/sql/1.0/warehouses/{self.warehouse_id}"
 
     def setWarehouse(self, http_path):
         """Sets the SQL Warehouse http path to use for the benchmark."""
-        assert self._validate_warehouse(id), "Invalid HTTP path for SQL Warehouse."
+        assert self._validate_warehouse(http_path), "Invalid HTTP path for SQL Warehouse."
         self.http_path = http_path
         if self.http_path:
             self.warehouse_id = self.http_path.split("/")[-1]
             self.warehouse_name = self._get_warehouse_info()
+
+    def stop_warehouse(self, warehouse_id):
+        """Stops a SQL warehouse."""
+        logging.info(f"Stopping warehouse {warehouse_id}")
+        response = requests.post(
+            f"https://{self.hostname}/api/2.0/sql/warehouses/{warehouse_id}/stop",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        return response.status_code
 
     def setConcurrency(self, concurrency):
         """Sets the query execution parallelism."""
@@ -375,6 +388,8 @@ class Benchmark:
         metrics_pdf["status"] = raw_metrics_pdf["status"]
         metrics_pdf["warehouse_name"] = self.warehouse_name
         metrics_pdf["id"] = raw_metrics_pdf["id"]
+        # Set 'id' as the index of the DataFrame
+        metrics_pdf.set_index('id', inplace=True)         
         return metrics_pdf
 
     def _get_warehouse_info(self):

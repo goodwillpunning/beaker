@@ -111,6 +111,7 @@ class SQLWarehouseUtils:
         )
         result = list(map(lambda v: v["key"], response.json()["versions"]))
         return result
+    
 
     def launch_warehouse(self, config):
         """Creates a new SQL warehouse based upon a config."""
