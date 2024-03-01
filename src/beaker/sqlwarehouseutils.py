@@ -62,7 +62,6 @@ class SQLWarehouseUtils:
             schema=self.schema,
             session_configuration={"use_cached_result": results_caching},
         )
-        logging.info(f"Created new connection: {connection}")
         self.connection = connection
 
     def close_connection(self):

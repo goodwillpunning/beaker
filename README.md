@@ -84,7 +84,7 @@ metrics = benchmark.execute()
 print(metrics)
 ```
 
-`metrics` is a list of dict. Each dict is the result of a single query execution.
+`metrics` is a pandas dataframe of the result of a single query execution.
 
 If you want to examine the results as a spark DataFrame and your environment has the capability of creating a spark session, you can use spark_fixture.
 

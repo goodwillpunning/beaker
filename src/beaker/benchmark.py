@@ -341,8 +341,8 @@ class Benchmark:
         --------
         end_res : query history json
         """
+        logging.info(f"Extracting query history {self.warehouse_name}")
         user_id = self._get_user_id()
-        logging.info("Extracting Query History")
         ## Put together request 
         request_string = {
             "filter_by": {
@@ -365,7 +365,6 @@ class Benchmark:
 
         #### Get Query History Results from API
         response = requests.get(uri, data=v, headers=headers_auth)
-        logging.info("Await completion of all queries...")
         while True:
             results = response.json()['res']
             if all([item['is_final'] for item in results]):
@@ -374,22 +373,21 @@ class Benchmark:
             response = requests.get(uri, data=v, headers=headers_auth)
 
         if (response.status_code == 200) and ("res" in response.json()):
-            logging.info("Query history extracted successfully")
             end_res = response.json()['res']
             return end_res
         else:
             raise Exception("Failed to retrieve successful query history")
         
     def clean_query_metrics(self, raw_metrics_pdf):
-        logging.info("Clean Query Metrics")
+        logging.info(f"Clean Query Metrics {self.warehouse_name}")
         metrics_pdf = json_normalize(raw_metrics_pdf['metrics'].apply(str).apply(eval))
         metrics_pdf["query_id"] = raw_metrics_pdf["query_id"]
         metrics_pdf["query"] = raw_metrics_pdf["query"]
         metrics_pdf["status"] = raw_metrics_pdf["status"]
         metrics_pdf["warehouse_name"] = self.warehouse_name
         metrics_pdf["id"] = raw_metrics_pdf["id"]
-        # Set 'id' as the index of the DataFrame
-        metrics_pdf.set_index('id', inplace=True)         
+        # Reorder the columns
+        metrics_pdf = metrics_pdf.reindex(columns=['id', 'warehouse_name', 'query', 'query_id', 'status'] + [c for c in metrics_pdf.columns if c not in ['id', 'warehouse_name', 'query', 'query_id', 'status']])      
         return metrics_pdf
 
     def _get_warehouse_info(self):
@@ -404,8 +402,7 @@ class Benchmark:
 
     def execute(self):
         """Executes the benchmark test."""
-        logging.info("Executing benchmark test")
-        logging.info("Set default catalog and schema")
+        logging.info("Executing benchmark")
         self.sql_warehouse = self._get_thread_local_connection()
 
         print(self.sql_warehouse)
@@ -432,7 +429,6 @@ class Benchmark:
 
         end_ts_ms = int(time.time() * 1000)
 
-        logging.info("Getting Query Metrics")
         history_metrics = self.get_query_history(self.warehouse_id, start_ts_ms, end_ts_ms)
         history_pdf = pd.DataFrame(history_metrics)
         beaker_pdf = pd.DataFrame(metrics)
@@ -455,8 +451,8 @@ class Benchmark:
         
         self._set_default_catalog()
         self._set_default_schema()
+        logging.info(f"Pre-warming tables on {self.catalog}.{self.schema} in {self.warehouse_name}")
         for table in tables:
-            logging.info(f"Pre-warming table: {table}")
             query = f"CACHE SELECT * FROM {table}"
             self._execute_single_query(query)
 
