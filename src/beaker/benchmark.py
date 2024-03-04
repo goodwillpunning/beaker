@@ -236,31 +236,6 @@ class Benchmark:
             file_headers, file_queries = self._parse_queries(raw_queries)
         queries = [e for e in zip(file_queries, file_headers)]
         return queries
-
-    # def _get_queries_from_file_format_semi(self, f, filter_comment_lines=False):
-    #     fc = None
-    #     queries = []
-    #     with open(f, "r") as of:
-    #         fc = of.read()
-    #     for idx, q in enumerate(fc.split(";")):
-    #         q = q.strip()
-    #         if not q:
-    #             continue
-    #         # Keep non-empty lines.
-    #         # Also keep or remove comments depending on the flag.
-    #         rq = [
-    #             l
-    #             for l in q.split("\n")
-    #             if l.strip() and not (filter_comment_lines and l.startswith("--"))
-    #         ]
-    #         if rq:
-    #             queries.append(
-    #                 (
-    #                     "\n".join(rq),
-    #                     f"query{idx}",
-    #                 )
-    #             )
-    #     return queries
     
     def _get_queries_from_file_format_semi(self, file_path):
         """
