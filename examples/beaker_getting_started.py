@@ -1,5 +1,7 @@
 # Databricks notebook source
-# MAGIC %pip install databricks-sql-connector
+# MAGIC %pip install databricks-sql-connector -q
+# MAGIC %pip install databricks-sdk -q
+# MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
 
@@ -31,6 +33,10 @@ importlib.reload(benchmark)
 
 # COMMAND ----------
 
+importlib.reload(spark_fixture)
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Create a new Benchmark Test
 
@@ -47,11 +53,14 @@ bm = benchmark.Benchmark()
 # COMMAND ----------
 
 # Change hostname and http_path to your dbsql warehouse
-hostname = "your-dbsql-hostname"
-http_path = "your-dbsql-http-path"
+hostname = spark.conf.get('spark.databricks.workspaceUrl')
+# Extract token from dbutils
+pat = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
+# OR Add the appropriate scope and key for your token if configured in databricks secrets
+# pat = dbutils.secrets.get(scope="your-scope", key="your-token")
 
-# Add the appropriate scope and key for your token
-pat = dbutils.secrets.get(scope="your-scope", key="your-token")
+# warehouse http path example, replace with your own
+http_path = "/sql/1.0/warehouses/475b94ddc7cd5211"
 
 # COMMAND ----------
 
@@ -59,9 +68,9 @@ pat = dbutils.secrets.get(scope="your-scope", key="your-token")
 # Use the builder pattern to add parameters for connecting to the warehouse
 bm.setName(name="simple_test")
 bm.setHostname(hostname=hostname)
+bm.setWarehouseToken(token=pat)
 bm.setWarehouse(http_path=http_path)
 bm.setConcurrency(concurrency=1)
-bm.setWarehouseToken(token=pat)
 
 # Define the query to execute and target Catalog
 query_str = """
@@ -75,11 +84,7 @@ bm.setCatalog(catalog="hive_metastore")
 # COMMAND ----------
 
 # Run the benchmark!
-metrics = bm.execute()
-
-# COMMAND ----------
-
-metrics
+metrics_pdf = bm.execute()
 
 # COMMAND ----------
 
@@ -88,7 +93,7 @@ metrics
 
 # COMMAND ----------
 
-df_simple_test = spark_fixture.metrics_to_df_view(metrics, "simple_test_vw")
+df_simple_test = spark_fixture.metrics_to_df_view(metrics_pdf, "simple_test_vw")
 df_simple_test.display()
 
 # COMMAND ----------
@@ -109,10 +114,19 @@ importlib.reload(benchmark)
 
 # COMMAND ----------
 
+hostname = spark.conf.get('spark.databricks.workspaceUrl')
+pat = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().get()
+query_str = """
+SELECT count(*)
+  FROM delta.`/databricks-datasets/nyctaxi/tables/nyctaxi_yellow`
+ WHERE passenger_count > 2
+"""
+
 new_warehouse_config = {
     "type": "warehouse",
     "runtime": "latest",
-    "size": "Large",
+    "size": "2X-Small",
+    "warehouse": "serverless",
     "min_num_clusters": 1,
     "max_num_clusters": 3,
     "enable_photon": True,
@@ -132,8 +146,8 @@ bm.setWarehouseConfig(new_warehouse_config)
 # benchmark.preWarmTables(tables=["table_a", "table_b", "table_c"])
 
 # Run the benchmark!
-metrics = bm.execute()
-print(metrics)
+metrics_pdf = bm.execute()
+display(metrics_pdf)
 
 # COMMAND ----------
 
@@ -189,7 +203,14 @@ bm.setCatalog(catalog="hive_metastore")
 
 # COMMAND ----------
 
-metrics = bm.execute()
-print(metrics)
+metrics_pdf = bm.execute()
+# Create a spark dataframe of the returned metrics pandas dataframe
+metrics_df = spark_fixture.metrics_to_df_view(metrics_pdf, view_name="metrics_view")
 
 # COMMAND ----------
+
+# MAGIC %sql select * from metrics_view
+
+# COMMAND ----------
+
+

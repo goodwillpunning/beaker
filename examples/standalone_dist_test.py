@@ -14,21 +14,23 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-bm = benchmark.Benchmark()
 
 hostname = os.getenv("DATABRICKS_HOST")
 http_path = os.getenv("DATABRICKS_HTTP_PATH")
 # Don't put tokens in plaintext in code
 access_token = os.getenv("DATABRICKS_ACCESS_TOKEN")
 
+bm = benchmark.Benchmark()
+bm.setName(name="standalone_dist_test")
 bm.setHostname(hostname=hostname)
+bm.setWarehouseToken(token=access_token)
 bm.setWarehouse(http_path=http_path)
 bm.setConcurrency(concurrency=5)
-bm.setWarehouseToken(token=access_token)
 
 bm.setQuery("select now(), 'foo';")
-bm.setQueryRepeatCount(100)
+bm.setCatalog(catalog="hive_metastore")
+bm.setQueryRepeatCount(10)
 
-metrics = bm.execute()
-#print(metrics)
+metrics_pdf = bm.execute()
+print(metrics_pdf)
 

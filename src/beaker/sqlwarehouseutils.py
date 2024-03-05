@@ -62,7 +62,6 @@ class SQLWarehouseUtils:
             schema=self.schema,
             session_configuration={"use_cached_result": results_caching},
         )
-        logging.info(f"Created new connection: {connection}")
         self.connection = connection
 
     def close_connection(self):
@@ -78,7 +77,9 @@ class SQLWarehouseUtils:
 
     def execute_query(self, query_str):
         with self.connection.cursor() as cursor:
-            result = cursor.execute(query_str)
+            cursor.execute(query_str)
+            result = cursor.fetchall()
+            return result
 
     def get_rows(self, query_str):
         with self.connection.cursor() as cursor:
@@ -109,6 +110,7 @@ class SQLWarehouseUtils:
         )
         result = list(map(lambda v: v["key"], response.json()["versions"]))
         return result
+    
 
     def launch_warehouse(self, config):
         """Creates a new SQL warehouse based upon a config."""
@@ -222,10 +224,25 @@ class SQLWarehouseUtils:
         warehouse_id = response.json().get("id")
 
         warehouse_start_time = time.time()
-        WorkspaceClient().warehouses.start_and_wait(warehouse_id)
-        print(f"{int(time.time() - warehouse_start_time)}s Warehouse Startup Time")
+
+        WorkspaceClient(host=f"https://{self.hostname}", token=self.access_token).warehouses.start_and_wait(warehouse_id)
+
+        print(f"{int(time.time() - warehouse_start_time)}s Warehouse {warehouse_id} Startup Time")
         
         if not warehouse_id:
             raise Exception(f"did not get back warehouse_id ({response.json()})")
 
         return warehouse_id
+
+
+    def __str__(self):
+        object_str = f"""
+    SQL Warehouse Utils
+    ------------------------
+    hostname={self.hostname}
+    catalog={self.catalog}
+    schema={self.schema}
+    http_path={self.http_path}
+    enable_results_caching={self.enable_results_caching}
+    """
+        return object_str

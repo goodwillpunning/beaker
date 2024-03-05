@@ -11,3 +11,9 @@
 # Build helpers
 *beaker.egg-info*
 build/*
+
+myvenv/
+
+*/.env
+.env
+

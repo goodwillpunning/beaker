@@ -5,6 +5,10 @@ import requests
 import logging
 from concurrent.futures import ThreadPoolExecutor
 import threading
+import datetime
+import json
+import pandas as pd
+from pandas import json_normalize
 
 from beaker.sqlwarehouseutils import SQLWarehouseUtils
 from beaker.spark_fixture import get_spark_session, metrics_to_df_view
@@ -52,9 +56,10 @@ class Benchmark:
         if new_warehouse_config is not None:
             self.setWarehouseConfig(new_warehouse_config)
         self.query_file_format = query_file_format
+        self.sql_warehouse = None
 
     def _create_dbc(self):
-        sql_warehouse = SQLWarehouseUtils(
+        self.sql_warehouse = SQLWarehouseUtils(
             self.hostname,
             self.http_path,
             self.token,
@@ -63,9 +68,9 @@ class Benchmark:
             self.results_cache_enabled,
         )
         # establish connection on the existing warehouse
-        sql_warehouse.setConnection()
-        logging.info(f"Returning new sqlwarehouseutils: {sql_warehouse}")
-        return sql_warehouse
+        self.sql_warehouse.setConnection()
+
+        return self.sql_warehouse
 
     def _get_thread_local_connection(self):
         if not hasattr(thread_local, "connection"):
@@ -80,9 +85,14 @@ class Benchmark:
         )
         return response.json()["id"]
 
+
     def _validate_warehouse(self, http_path):
         """Validates the SQL warehouse HTTP path."""
-        return True
+        pattern = r'^/sql/1\.0/warehouses/[a-f0-9]+$'
+        if re.match(pattern, http_path):
+            return True
+        else:
+            return False
 
     def _launch_new_warehouse(self):
         """Launches a new SQL Warehouse"""
@@ -108,14 +118,26 @@ class Benchmark:
         """Launches a new cluster/warehouse from a JSON config."""
         self.new_warehouse_config = config
         logging.info(f"Creating new warehouse with config: {config}")
-        warehouse_id = self._launch_new_warehouse()
-        logging.info(f"The warehouse Id is: {warehouse_id}")
-        self.http_path = f"/sql/1.0/warehouses/{warehouse_id}"
+        self.warehouse_id = self._launch_new_warehouse()
+        self.warehouse_name = self._get_warehouse_info()
+        self.http_path = f"/sql/1.0/warehouses/{self.warehouse_id}"
 
     def setWarehouse(self, http_path):
         """Sets the SQL Warehouse http path to use for the benchmark."""
-        assert self._validate_warehouse(id), "Invalid HTTP path for SQL Warehouse."
+        assert self._validate_warehouse(http_path), "Invalid HTTP path for SQL Warehouse."
         self.http_path = http_path
+        if self.http_path:
+            self.warehouse_id = self.http_path.split("/")[-1]
+            self.warehouse_name = self._get_warehouse_info()
+
+    def stop_warehouse(self, warehouse_id):
+        """Stops a SQL warehouse."""
+        logging.info(f"Stopping warehouse {warehouse_id}")
+        response = requests.post(
+            f"https://{self.hostname}/api/2.0/sql/warehouses/{warehouse_id}/stop",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        return response.status_code
 
     def setConcurrency(self, concurrency):
         """Sets the query execution parallelism."""
@@ -172,24 +194,24 @@ class Benchmark:
 
     def _execute_single_query(self, query, id=None):
         query = query.strip()
-        logging.info(query)
 
-        sql_warehouse = self._get_thread_local_connection()
-
-        # TODO: instead of using perf counter, we might want to get the query duration from /api/2.0/sql/history/queries API
+        ## Instead of using perf counter, we want to get the query duration from /api/2.0/sql/history/queries API
         start_time = time.perf_counter()
-        sql_warehouse.execute_query(query)
+        result = self.sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
+ 
         metrics = {
             "id": id,
             "hostname": self.hostname,
             "http_path": self.http_path,
+            "warehouse_name": self.warehouse_name,
             "concurrency": self.concurrency,
             "query": query,
             "elapsed_time": elapsed_time,
         }
         return metrics
+
 
     def _set_default_catalog(self):
         if self.catalog:
@@ -214,34 +236,29 @@ class Benchmark:
             file_headers, file_queries = self._parse_queries(raw_queries)
         queries = [e for e in zip(file_queries, file_headers)]
         return queries
+    
+    def _get_queries_from_file_format_semi(self, file_path):
+        """
+        Parses a SQL file and returns a list of tuples with the query_id and the query text.
 
-    def _get_queries_from_file_format_semi(self, f, filter_comment_lines=False):
-        fc = None
-        queries = []
-        with open(f, "r") as of:
-            fc = of.read()
-        for idx, q in enumerate(fc.split(";")):
-            q = q.strip()
-            if not q:
-                continue
-            # Keep non-empty lines.
-            # Also keep or remove comments depending on the flag.
-            rq = [
-                l
-                for l in q.split("\n")
-                if l.strip() and not (filter_comment_lines and l.startswith("--"))
-            ]
-            if rq:
-                queries.append(
-                    (
-                        "\n".join(rq),
-                        f"query{idx}",
-                    )
-                )
+        Parameters:
+        file_path (str): The path to the SQL file.
+
+        Returns:
+        list: A list of tuples, where each tuple contains a query_id and a query text.
+        """
+        with open(file_path, 'r') as file:
+            content = file.read()
+
+        pattern = r'-- {"query_id":"(.*?)"}\n(.*?);'
+        matches = re.findall(pattern, content, re.DOTALL)
+
+        # Swap the order of elements in each tuple
+        queries = [(query, query_id) for query_id, query in matches]
         return queries
 
+
     def _get_queries_from_file(self, query_file):
-        print("Get queries from file:", query_file)
         if self.query_file_format == self.QUERY_FILE_FORMAT_SEMICOLON_DELIM:
             return self._get_queries_from_file_format_semi(query_file)
         elif self.query_file_format == self.QUERY_FILE_FORMAT_ORIGINAL:
@@ -258,7 +275,6 @@ class Benchmark:
         return [os.path.join(query_file_dir, f) for f in os.listdir(query_file_dir)]
 
     def _get_queries_from_dir(self, query_dir):
-        print("Get queries from dir:", query_dir)
         query_files = self._get_query_filenames_from_dir(query_dir)
         queries = []
         for qf in query_files:
@@ -285,14 +301,95 @@ class Benchmark:
                 executor.map(lambda x: self._execute_single_query(*x), queries)
             )
         return metrics_list
+    
+    def get_query_history(self, warehouse_id, start_ts_ms, end_ts_ms):
+        """
+        Retrieves the Query History for a given workspace and Data Warehouse.
+
+        Parameters:
+        -----------
+        warehouse_id (str): The ID of the Data Warehouse for which to retrieve the Query History.
+        start_ts_ms (int): The Unix timestamp (milliseconds) value representing the start of the query history.
+        end_ts_ms (int): The Unix timestamp (milliseconds) value representing the end of the query history.
+
+        Returns:
+        --------
+        end_res : query history json
+        """
+        logging.info(f"Extracting query history {self.warehouse_name}")
+        user_id = self._get_user_id()
+        ## Put together request 
+        request_string = {
+            "filter_by": {
+                "query_start_time_range": {
+                    "end_time_ms": end_ts_ms,
+                    "start_time_ms": start_ts_ms
+            },
+            "warehouse_ids": warehouse_id,
+            "user_ids": [user_id],
+            },
+            "include_metrics": "true",
+            "max_results": "1000"
+        }
+
+        # ## Convert dict to json
+        v = json.dumps(request_string)
+
+        uri = f"https://{self.hostname}/api/2.0/sql/history/queries"
+        headers_auth = {"Authorization":f"Bearer {self.token}"}
+
+        #### Get Query History Results from API
+        response = requests.get(uri, data=v, headers=headers_auth)
+        while True:
+            results = response.json()['res']
+            if all([item['is_final'] for item in results]):
+                break
+            time.sleep(10)
+            response = requests.get(uri, data=v, headers=headers_auth)
+
+        if (response.status_code == 200) and ("res" in response.json()):
+            end_res = response.json()['res']
+            return end_res
+        else:
+            raise Exception("Failed to retrieve successful query history")
+        
+    def clean_query_metrics(self, raw_metrics_pdf):
+        logging.info(f"Clean Query Metrics {self.warehouse_name}")
+        metrics_pdf = json_normalize(raw_metrics_pdf['metrics'].apply(str).apply(eval))
+        metrics_pdf["query_id"] = raw_metrics_pdf["query_id"]
+        metrics_pdf["query"] = raw_metrics_pdf["query"]
+        metrics_pdf["status"] = raw_metrics_pdf["status"]
+        metrics_pdf["warehouse_name"] = self.warehouse_name
+        metrics_pdf["id"] = raw_metrics_pdf["id"]
+        # Reorder the columns
+        metrics_pdf = metrics_pdf.reindex(columns=['id', 'warehouse_name', 'query', 'query_id', 'status'] + [c for c in metrics_pdf.columns if c not in ['id', 'warehouse_name', 'query', 'query_id', 'status']])      
+        return metrics_pdf
+
+    def _get_warehouse_info(self):
+        """Gets the warehouse info."""
+        response = requests.get(
+            f"https://{self.hostname}/api/2.0/sql/warehouses/{self.warehouse_id}",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        warehouse_name = response.json()["name"]
+        return warehouse_name
+    
 
     def execute(self):
         """Executes the benchmark test."""
-        logging.info("Executing benchmark test")
-        logging.info("Set default catalog and schema")
+        logging.info("Executing benchmark")
+        self.sql_warehouse = self._get_thread_local_connection()
+
+        print(self.sql_warehouse)
+
         self._set_default_catalog()
         self._set_default_schema()
-        metrics = None
+        
+        print(f"Monitor warehouse `{self.warehouse_name}` at: ", f"https://{self.hostname}/sql/warehouses/{self.warehouse_id}/monitoring")
+        
+        start_ts_ms = int(time.time() * 1000)
+        start_dt = datetime.datetime.fromtimestamp(start_ts_ms/1000).strftime('%Y-%m-%d %H:%M:%S')
+
         if self.query_file_dir is not None:
             logging.info("Loading query files from directory.")
             metrics = self._execute_queries_from_dir(self.query_file_dir)
@@ -304,9 +401,16 @@ class Benchmark:
             metrics = self._execute_queries_from_query(self.query)
         else:
             raise ValueError("No query specified.")
-        metrics_df = metrics_to_df_view(metrics, f"{self.name}_vw")
-        print(f"Query the metrics view at: ", f"{self.name}_vw")
-        return metrics
+
+        end_ts_ms = int(time.time() * 1000)
+
+        history_metrics = self.get_query_history(self.warehouse_id, start_ts_ms, end_ts_ms)
+        history_pdf = pd.DataFrame(history_metrics)
+        beaker_pdf = pd.DataFrame(metrics)
+        raw_metrics_pdf = history_pdf.merge(beaker_pdf[['query', 'id']].drop_duplicates(), left_on='query_text', right_on='query', how='inner')
+        metrics_pdf = self.clean_query_metrics(raw_metrics_pdf)
+
+        return metrics_pdf
 
     def preWarmTables(self, tables):
         """Delta caches the table before running a benchmark test."""
@@ -317,12 +421,16 @@ class Benchmark:
         assert (
             self.catalog is not None
         ), "No catalog provided. You can add a catalog by calling `.setCatalog()`."
+        
+        self.sql_warehouse = self._get_thread_local_connection()
+        
         self._set_default_catalog()
         self._set_default_schema()
+        logging.info(f"Pre-warming tables on {self.catalog}.{self.schema} in {self.warehouse_name}")
         for table in tables:
-            logging.info(f"Pre-warming table: {table}")
-            query = f"SELECT * FROM {table}"
+            query = f"CACHE SELECT * FROM {table}"
             self._execute_single_query(query)
+
 
     def __str__(self):
         object_str = f"""
@@ -337,5 +445,6 @@ class Benchmark:
     query_repeat_count={self.query_repeat_count}
     hostname={self.hostname}
     warehouse_http_path={self.http_path}
+    sql_warehouse={self.sql_warehouse}
     """
         return object_str
