@@ -36,23 +36,18 @@ class SQLWarehouseUtils:
         self.catalog = catalog
         self.schema = schema
         self.enable_results_caching = enable_results_caching
-        # this won't work if warehouse hasn't been created
-        # self.connection = self.get_connection()
-        self.connection = None
 
 
-    def __del__(self):
-        self.close_connection()
+    # def __del__(self):
+    #     self.close_connection()
 
-    def setConnection(self):
+    def _get_connection(self):
         # Enable/disable results caching on the SQL warehouse
         # https://docs.databricks.com/sql/admin/query-caching.html
         if self.enable_results_caching:
             results_caching = "true"
         else:
             results_caching = "false"
-
-        assert self.http_path, ("Warehouse doesn't exist to create connection")
   
         connection = sql.connect(
             server_hostname=self.hostname,
@@ -62,30 +57,19 @@ class SQLWarehouseUtils:
             schema=self.schema,
             session_configuration={"use_cached_result": results_caching},
         )
-        self.connection = connection
+        logging.info(f"Created new connection: {connection}")
+        return connection
 
-    def close_connection(self):
-        # Only close connection is self.connection exists, no need to raise Exception
-        if self.connection:
-            self.connection.close()
-        # try:
-        #     if self.connection:
-        #         self.connection.close()
-        # except Exception as err:
-        #     print(f"Unexpected {err}, {type(err)}")
-        #     raise
 
     def execute_query(self, query_str):
-        with self.connection.cursor() as cursor:
-            cursor.execute(query_str)
-            result = cursor.fetchall()
-            return result
-
-    def get_rows(self, query_str):
-        with self.connection.cursor() as cursor:
-            cursor.execute(query_str)
-            rows = cursor.fetchall()
-            return rows
+        # create a seperate connection for each query to facilitate concurrency
+        connection = self._get_connection()
+        cursor = connection.cursor()
+        cursor.execute(query_str)
+        rows = cursor.fetchall()
+        cursor.close()
+        connection.close()
+        return rows
 
     def setToken(self, token):
         self.access_token = token
@@ -231,6 +215,9 @@ class SQLWarehouseUtils:
         
         if not warehouse_id:
             raise Exception(f"did not get back warehouse_id ({response.json()})")
+        
+        # set http_path for the newly created warehouse
+        self.http_path = f"/sql/1.0/warehouses/{warehouse_id}"
 
         return warehouse_id
 

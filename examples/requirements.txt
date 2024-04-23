@@ -3,3 +3,4 @@ databricks-sdk
 pyspark
 python-dotenv
 pandas
+../dist/beaker-0.0.8-py3-none-any.whl

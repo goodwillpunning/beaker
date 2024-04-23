@@ -18,16 +18,16 @@ schema_name = os.getenv("SCHEMA")
 class TestBenchmark(unittest.TestCase):
     def setUp(self):
         self.bm = benchmark.Benchmark()
-        self.bm.setName(name="unittest")
-        self.bm.setHostname(hostname=hostname)
-        self.bm.setWarehouseToken(token=access_token)
-        self.bm.setWarehouse(http_path=http_path)
+        # self.bm.setName(name="unittest")
+        # self.bm.setHostname(hostname=hostname)
+        # self.bm.setWarehouseToken(token=access_token)
+        # self.bm.setWarehouse(http_path=http_path)
 
     def test_get_queries_from_file_format_semi(self):
         # Define a test case
-        test_file_path = '../../examples/queries/q10.sql'
+        test_file_path = '../../examples/queries/q2.sql'
         # replace with the expected output
-        expected_output = [("select 'q10', now()", 'q10')]  
+        expected_output = [("--q02--\nselect 'q2', now();", 'q02'), ("--q03--\nselect 'q3', now();", 'q03')]
 
         # Call the function with the test case
         actual_output = self.bm._get_queries_from_file_format_semi(test_file_path)
@@ -39,7 +39,7 @@ class TestBenchmark(unittest.TestCase):
         # Define a test case
         test_file_path = '../../examples/queries_orig/q1.sql'
         # replace with the expected output
-        expected_output = [("select 'q1', now();", 'Q1')]
+        expected_output = [("--Q1--\nselect 'q1', now();", 'Q1'), ("--Q2--\nselect 'q2', now();", 'Q2')]
 
         # Call the function with the test case
         actual_output = self.bm._get_queries_from_file_format_orig(test_file_path)
@@ -51,7 +51,7 @@ class TestBenchmark(unittest.TestCase):
         # Define a test case
         test_dir_path = '../../examples/queries_orig/'
         # replace with the expected output
-        expected_output = [("select 'q1', now();", 'Q1'), ("select 'q2', now();", 'Q2')]
+        expected_output = [("--Q1--\nselect 'q1', now();", 'Q1'), ("--Q2--\nselect 'q2', now();", 'Q2'), ("--Q3--\nselect 'q3', now();", 'Q3')]
 
         # Call the function with the test case
         self.bm.query_file_format = "original"
@@ -64,7 +64,7 @@ class TestBenchmark(unittest.TestCase):
         # Define a test case
         test_dir_path = '../../examples/queries/'
         # replace with the expected output
-        expected_output = [("select 'q1', now()", 'q1'), ("select 'q2', now()", 'q2'), ("select 'q10', now()", 'q10')]
+        expected_output = [("--q01--\nselect 'q1', now();", 'q01'), ("--q02--\nselect 'q2', now();", 'q02'), ("--q03--\nselect 'q3', now();", 'q03'), ("--q10--\nselect 'q10', now();", 'q10')]
 
         # Call the function with the test case
         self.bm.query_file_format = "semicolon-delimited"

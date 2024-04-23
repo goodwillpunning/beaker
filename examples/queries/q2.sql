@@ -1,2 +1,2 @@
--- {"query_id":"q2"}
+--q02--
 select 'q2', now();
