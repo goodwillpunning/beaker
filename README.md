@@ -1,5 +1,5 @@
 # Beaker 🧪
-Execute query benchmark tests against Databricks SQL warehouses and clusters.
+Beaker is a Python library that makes executing query benchmarks against Databricks SQL warehouses and clusters simple.
 
 <img src="./assets/images/beaker.png" width="200">
 
