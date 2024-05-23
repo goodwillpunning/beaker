@@ -3,7 +3,7 @@ import time
 import re
 import requests
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 import threading
 import datetime
 import json
@@ -59,7 +59,7 @@ class Benchmark:
         self.sql_warehouse = None
 
     def _create_dbc(self):
-        self.sql_warehouse = SQLWarehouseUtils(
+        sql_warehouse = SQLWarehouseUtils(
             self.hostname,
             self.http_path,
             self.token,
@@ -67,10 +67,7 @@ class Benchmark:
             self.schema,
             self.results_cache_enabled,
         )
-        # establish connection on the existing warehouse
-        self.sql_warehouse.setConnection()
-
-        return self.sql_warehouse
+        return sql_warehouse
 
     def _get_thread_local_connection(self):
         if not hasattr(thread_local, "connection"):
@@ -194,8 +191,6 @@ class Benchmark:
 
     def _execute_single_query(self, query, id=None):
         query = query.strip()
-
-        ## Instead of using perf counter, we want to get the query duration from /api/2.0/sql/history/queries API
         start_time = time.perf_counter()
         result = self.sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
@@ -228,6 +223,8 @@ class Benchmark:
         split_clean = list(map(str.strip, split_raw))
         headers = split_clean[::2]
         queries = split_clean[1::2]
+        # add query_id to the query for history metrics extraction
+        queries = [f"--{header.strip()}--\n{query}" for header, query in zip(headers, queries)]
         return headers, queries
 
     def _get_queries_from_file_format_orig(self, f):
@@ -248,13 +245,11 @@ class Benchmark:
         list: A list of tuples, where each tuple contains a query_id and a query text.
         """
         with open(file_path, 'r') as file:
-            content = file.read()
+            content = file.read().strip()
 
-        pattern = r'-- {"query_id":"(.*?)"}\n(.*?);'
-        matches = re.findall(pattern, content, re.DOTALL)
+        matches = re.findall(r'--(.*?)--\s*(.*?);', content, re.DOTALL)
 
-        # Swap the order of elements in each tuple
-        queries = [(query, query_id) for query_id, query in matches]
+        queries = [(f"--{query_id}--\n{query_text.strip()};", query_id) for query_id, query_text in matches]
         return queries
 
 
@@ -288,20 +283,25 @@ class Benchmark:
         return metrics
 
     def _execute_queries_from_query(self, query):
-        metrics = self._execute_queries([(query, "query")], 1)
+        metrics = self._execute_queries([(query, "query")], self.concurrency)
         return metrics
 
     def _execute_queries(self, queries, num_threads):
         # Duplicate queries `query_repeat_count` number of times
         queries = queries * self.query_repeat_count
+        # Create bucketed_queries
+        bucketed_queries = [queries[i:i + num_threads] for i in range(0, len(queries), num_threads)]
 
-        metrics_list = None
-        with ThreadPoolExecutor(max_workers=num_threads) as executor:
-            metrics_list = list(
-                executor.map(lambda x: self._execute_single_query(*x), queries)
-            )
+        metrics_list = []
+        for query_bucket in bucketed_queries:
+            print(f'Executing {len(query_bucket)} queries concurrently on {self.warehouse_name}')
+            with ThreadPoolExecutor(max_workers=num_threads) as executor:
+                futures = [executor.submit(self._execute_single_query, query, id) for query, id in query_bucket]
+                    # executor.map(lambda x: self._execute_single_query(*x), queries)
+                # wait(futures, return_when=ALL_COMPLETED)
+            metrics_list = metrics_list + [future.result() for future in futures]
         return metrics_list
-    
+
     def get_query_history(self, warehouse_id, start_ts_ms, end_ts_ms):
         """
         Retrieves the Query History for a given workspace and Data Warehouse.
@@ -316,7 +316,7 @@ class Benchmark:
         --------
         end_res : query history json
         """
-        logging.info(f"Extracting query history {self.warehouse_name}")
+        print(f"Extracting query history {self.warehouse_name} from {start_ts_ms} to {end_ts_ms}")
         user_id = self._get_user_id()
         ## Put together request 
         request_string = {
@@ -356,17 +356,18 @@ class Benchmark:
     def clean_query_metrics(self, raw_metrics_pdf):
         logging.info(f"Clean Query Metrics {self.warehouse_name}")
         metrics_pdf = json_normalize(raw_metrics_pdf['metrics'].apply(str).apply(eval))
-        metrics_pdf["query_id"] = raw_metrics_pdf["query_id"]
-        metrics_pdf["query"] = raw_metrics_pdf["query"]
-        metrics_pdf["status"] = raw_metrics_pdf["status"]
-        metrics_pdf["warehouse_name"] = self.warehouse_name
         metrics_pdf["id"] = raw_metrics_pdf["id"]
+        metrics_pdf["query_id"] = raw_metrics_pdf["query_id"]
+        metrics_pdf["query_text"] = raw_metrics_pdf["query_text"]
+        metrics_pdf["status"] = raw_metrics_pdf["status"]
+        metrics_pdf["warehouse_name"] = raw_metrics_pdf["warehouse_name"]
+
         # Reorder the columns
-        metrics_pdf = metrics_pdf.reindex(columns=['id', 'warehouse_name', 'query', 'query_id', 'status'] + [c for c in metrics_pdf.columns if c not in ['id', 'warehouse_name', 'query', 'query_id', 'status']])      
+        metrics_pdf = metrics_pdf.reindex(columns=['id', 'warehouse_name', 'query_text', 'query_id'] + [c for c in metrics_pdf.columns if c not in ['id', 'warehouse_name', 'query_text', 'query_id']])      
         return metrics_pdf
 
     def _get_warehouse_info(self):
-        """Gets the warehouse info."""
+        """Gets the warehouse name as it's not available in the config and in http_path."""
         response = requests.get(
             f"https://{self.hostname}/api/2.0/sql/warehouses/{self.warehouse_id}",
             headers={"Authorization": f"Bearer {self.token}"},
@@ -378,9 +379,8 @@ class Benchmark:
     def execute(self):
         """Executes the benchmark test."""
         logging.info("Executing benchmark")
-        self.sql_warehouse = self._get_thread_local_connection()
-
-        print(self.sql_warehouse)
+        if not self.sql_warehouse:
+            self.sql_warehouse = self._get_thread_local_connection()
 
         self._set_default_catalog()
         self._set_default_schema()
@@ -406,17 +406,17 @@ class Benchmark:
 
         history_metrics = self.get_query_history(self.warehouse_id, start_ts_ms, end_ts_ms)
         history_pdf = pd.DataFrame(history_metrics)
-        beaker_pdf = pd.DataFrame(metrics)
-        raw_metrics_pdf = history_pdf.merge(beaker_pdf[['query', 'id']].drop_duplicates(), left_on='query_text', right_on='query', how='inner')
-        metrics_pdf = self.clean_query_metrics(raw_metrics_pdf)
-
-        return metrics_pdf
+        history_pdf["warehouse_name"] = self.warehouse_name
+        ## Extract query ID from query_text, if query ID is not present, use 'query'
+        history_pdf['id'] = history_pdf['query_text'].str.extract(r'--(.*?)--', flags=re.IGNORECASE).fillna('query')
+        print("Benchmark completed")
+        return history_pdf
 
     def preWarmTables(self, tables):
         """Delta caches the table before running a benchmark test."""
         assert self.http_path is not None, (
             "No running warehouse. "
-            "You can launch a new ware house by calling `.setWarehouseConfig()`."
+            "You can launch a new warehouse by calling `.setWarehouseConfig()`."
         )
         assert (
             self.catalog is not None
@@ -426,7 +426,7 @@ class Benchmark:
         
         self._set_default_catalog()
         self._set_default_schema()
-        logging.info(f"Pre-warming tables on {self.catalog}.{self.schema} in {self.warehouse_name}")
+        print(f"Pre-warming tables on {self.catalog}.{self.schema} in {self.warehouse_name}")
         for table in tables:
             query = f"CACHE SELECT * FROM {table}"
             self._execute_single_query(query)

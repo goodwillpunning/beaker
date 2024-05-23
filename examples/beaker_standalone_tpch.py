@@ -23,7 +23,8 @@ bm.setName(name="simple_test")
 bm.setHostname(hostname=hostname)
 bm.setWarehouseToken(token=access_token)
 bm.setWarehouse(http_path=http_path)
-bm.setConcurrency(concurrency=1)
+bm.setQueryRepeatCount(2)
+bm.setConcurrency(concurrency=10)
 
 print("---- Test prewarm table ------")
 bm.setCatalog(catalog_name)
@@ -35,6 +36,3 @@ bm.query_file_format = "original"
 bm.setQueryFileDir("tpch")
 metrics_pdf = bm.execute()
 print(metrics_pdf)
-
-print("---- Close connection ------")
-bm.sql_warehouse.close_connection()

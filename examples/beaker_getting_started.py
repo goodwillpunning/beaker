@@ -137,8 +137,8 @@ bm = benchmark.Benchmark()
 bm.setHostname(hostname=hostname)
 bm.setWarehouseToken(token=pat)
 bm.setQuery(query_str)
-bm.setCatalog(catalog="hive_metastore")
 bm.setWarehouseConfig(new_warehouse_config)
+bm.setCatalog(catalog="hive_metastore")
 
 # COMMAND ----------
 
@@ -147,7 +147,7 @@ bm.setWarehouseConfig(new_warehouse_config)
 
 # Run the benchmark!
 metrics_pdf = bm.execute()
-display(metrics_pdf)
+print(metrics_pdf)
 
 # COMMAND ----------
 

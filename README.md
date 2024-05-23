@@ -51,17 +51,18 @@ benchmark = Benchmark(query=query, hostname=hostname, http_path=http_path, token
 The Benchmark class can also use a builder pattern to specify the connection parameters.
 ```python
 benchmark = Benchmark()
+benchmark.setName(name="simple_test")
 benchmark.setHostname(hostname=hostname)
+benchmark.setWarehouseToken(token=token)
 # HTTP path to an existing warehouse/cluster
 benchmark.setWarehouse(http_path=http_path)
 benchmark.setConcurrency(concurrency=10)
-benchmark.setWarehouseToken(token=token)
 benchmark.setQuery(query=query)
 benchmark.setCatalog(catalog="hive_metastore")
 benchmark.preWarmTables(tables=["table_1", "table_2", "table_3"])
 ```
 
-You may even choose to provision a new SQL warehouse. 
+Instead of using `benchmark.setWarehouse(http_path)`, You may even choose to provision a new SQL warehouse. 
 You can choose the warehouse type (pro, classic, serverless) by specify the warehouse parameter. Default to serverless if "warehouse" param is not specified
 
 ```python
@@ -69,7 +70,7 @@ new_warehouse_config = {
     "type": "warehouse",
     "warehouse": "serverless", # -> specify the warehouse type (pro, classic, serverless). Default to serverless
     "runtime": "latest",
-    "size": "Large",
+    "size": "Small",
     "min_num_clusters": 1,
     "max_num_clusters": 3,
     "enable_photon": True
@@ -161,13 +162,13 @@ SELECT * FROM us_population_2016 WHERE state in ('DE', 'MD', 'VA');
 ```
 
 #### Query file format: semicolon-delimited
-The query file must contain queries that are separated by a semicolon:
+The query file must contain queries start with `--query_id--` and end with a semicolon:
 
 ```sql
--- some comment
+--Q1--
 select * from foo;
 
--- more comments
+--Q2--
 SELECT * FROM us_population_2016 WHERE state in ('DE', 'MD', 'VA');
 ```
 
