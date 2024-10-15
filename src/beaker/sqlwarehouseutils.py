@@ -66,10 +66,8 @@ class SQLWarehouseUtils:
         connection = self._get_connection()
         cursor = connection.cursor()
         cursor.execute(query_str)
-        rows = cursor.fetchall()
         cursor.close()
         connection.close()
-        return rows
 
     def setToken(self, token):
         self.access_token = token

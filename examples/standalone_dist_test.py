@@ -5,6 +5,8 @@
 #
 # You can run it like this:
 # Copy this file to the python env where you have pip installed the dist.
+# Update the distribution package in requirements.txt (for example, ../dist/beaker-0.0.8-py3-none-any.whl)
+# > pip install -r requirements.txt
 # > python standalone_dist_test.py
 
 import os, sys
@@ -25,12 +27,12 @@ access_token = os.getenv("DATABRICKS_ACCESS_TOKEN")
 
 print(hostname)
 bm = benchmark.Benchmark()
-# bm.setName(name="standalone_dist_test")
+bm.setName(name="standalone_dist_test")
 bm.setHostname(hostname=hostname)
 bm.setWarehouseToken(token=access_token)
 bm.setWarehouse(http_path=http_path)
-bm.setQueryRepeatCount(8)
-bm.setConcurrency(concurrency=4)
+bm.setQueryRepeatCount(2)
+bm.setConcurrency(concurrency=2)
 
 query_str = """
 SELECT count(*)
