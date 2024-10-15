@@ -192,7 +192,7 @@ class Benchmark:
     def _execute_single_query(self, query, id=None):
         query = query.strip()
         start_time = time.perf_counter()
-        result = self.sql_warehouse.execute_query(query)
+        self.sql_warehouse.execute_query(query)
         end_time = time.perf_counter()
         elapsed_time = f"{end_time - start_time:0.3f}"
  
@@ -426,7 +426,7 @@ class Benchmark:
         
         self._set_default_catalog()
         self._set_default_schema()
-        print(f"Pre-warming tables on {self.catalog}.{self.schema} in {self.warehouse_name}")
+        print(f"Pre-warming tables in {self.catalog}.{self.schema} on {self.warehouse_name}")
         for table in tables:
             query = f"CACHE SELECT * FROM {table}"
             self._execute_single_query(query)
